@@ -352,6 +352,20 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       drawFerry(ctx, t, Math.min(1, v.slots / v.capacity), sail, v.supplies.fuel >= v.needs.fuel && v.supplies.medicine >= v.needs.medicine && v.supplies.tools >= v.needs.tools);
       if (v.phase === "play") drawGangway(ctx, t, !!self?.carry.length);
 
+      // Place names are painted on the land, under people and trees.
+      ctx.font = "italic 700 15px Georgia, serif";
+      for (const id of ZONE_IDS) {
+        const z = ZONES[id];
+        if (z.x < x0 || z.x > x1 || z.y < y0 || z.y > y1) continue;
+        const flooded = level > -99 && footing(z.x, z.y, g) === 0 && id !== "caves";
+        ctx.fillStyle = flooded ? "rgba(220,245,240,.55)" : "rgba(255,248,230,.92)";
+        ctx.strokeStyle = "rgba(20,30,30,.55)";
+        ctx.lineWidth = 3;
+        const ly = id === "palace" ? z.y - 170 : id === "hotel" ? z.y - 150 : id === "lighthouse" ? z.y - 130 : z.y - z.r * 0.55;
+        ctx.strokeText(flooded ? `${z.name} (flooded)` : z.name, z.x, ly);
+        ctx.fillText(flooded ? `${z.name} (flooded)` : z.name, z.x, ly);
+      }
+
       const items: { y: number; draw: () => void }[] = [];
       for (const p of props) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1 && level - 0.25 < 99 && footing(p.x, p.y, g) > 0.6) items.push({ y: p.y, draw: () => drawProp(ctx, p, t) });
       for (const l of drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level)) items.push(l);
@@ -445,20 +459,6 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         ctx.beginPath();
         ctx.ellipse(target.x, target.y, 10 + Math.sin(t / 150) * 2, 4, 0, 0, Math.PI * 2);
         ctx.stroke();
-      }
-
-      // Place names float over the land.
-      ctx.font = "italic 700 15px Georgia, serif";
-      for (const id of ZONE_IDS) {
-        const z = ZONES[id];
-        if (z.x < x0 || z.x > x1 || z.y < y0 || z.y > y1) continue;
-        const flooded = level > -99 && footing(z.x, z.y, g) === 0 && id !== "caves";
-        ctx.fillStyle = flooded ? "rgba(220,245,240,.55)" : "rgba(255,248,230,.92)";
-        ctx.strokeStyle = "rgba(20,30,30,.55)";
-        ctx.lineWidth = 3;
-        const ly = id === "palace" ? z.y - 170 : id === "hotel" ? z.y - 150 : id === "lighthouse" ? z.y - 130 : z.y - z.r * 0.55;
-        ctx.strokeText(flooded ? `${z.name} (flooded)` : z.name, z.x, ly);
-        ctx.fillText(flooded ? `${z.name} (flooded)` : z.name, z.x, ly);
       }
 
       // ---- screen space: arrow to the ferry, joystick ----
