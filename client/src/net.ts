@@ -2,7 +2,7 @@
 import { io, type Socket } from "socket.io-client";
 import { useSyncExternalStore } from "react";
 import type { GameView } from "../../shared/game";
-import type { ChatMessage, ClientAction, JoinResult, SignalKey, SignalMessage, VoiceState } from "../../shared/protocol";
+import type { ChatMessage, ClientAction, JoinResult, PosMessage, SignalKey, SignalMessage, VoiceState } from "../../shared/protocol";
 
 export interface Session {
   code: string;
@@ -174,6 +174,21 @@ export function act(a: ClientAction): Promise<string | null> {
     });
   });
 }
+
+/** Live positions, updated ten times a second outside React so the canvas can read them every frame. */
+export const live = {
+  pos: new Map<string, { x: number; y: number; dir: number; flags: number }>(),
+  at: 0,
+  snap: null as null | { x: number; y: number },
+};
+socket.on("pos", (m: PosMessage) => {
+  for (const [id, x, y, d, f] of m.p) live.pos.set(id, { x, y, dir: d / 100, flags: f });
+  live.at = m.t;
+});
+socket.on("snap", (p: { x: number; y: number }) => {
+  live.snap = p;
+});
+export const sendMove = (x: number, y: number, d: number, m: boolean) => socket.volatile.emit("move", { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, d: Math.round(d * 100) / 100, m });
 
 export const sendChat = (text: string) => socket.emit("chat", text);
 export const sendSignal = (key: SignalKey) => socket.emit("signal", key);

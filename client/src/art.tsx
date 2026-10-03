@@ -1,5 +1,5 @@
 // Hand-drawn vector art: cards, portraits, the island and the ferry.
-import type { CardKind, Place, Role } from "../../shared/game";
+import type { Kind, Role } from "../../shared/game";
 
 export const SEAT_COLORS = ["#3fc1b5", "#d2a74e", "#e7849a", "#9fd6ee", "#c9b6e4", "#ef8f6b", "#7fcf8f", "#f1ead9"];
 const SKIN = ["#f1c9a5", "#c98e62", "#8d5a3b", "#e8b48c", "#5e3a24", "#f6d7bd", "#b27a50", "#a8693f"];
@@ -56,7 +56,7 @@ export function ArtDefs() {
   );
 }
 
-export function CardArt({ kind, size = 56 }: { kind: CardKind | "pearl"; size?: number }) {
+export function CardArt({ kind, size = 56 }: { kind: Kind | "spoiled" | "pearl"; size?: number }) {
   return (
     <svg viewBox="0 0 120 84" width={size * 1.43} height={size} aria-hidden="true">
       {kind === "pearl" && (
@@ -238,14 +238,7 @@ export function Portrait({ role, seat, size = 48 }: { role: Role | null; seat: n
 
 // ---------- island ----------
 
-export const PLACE_POS: Record<Place, { x: number; y: number }> = {
-  palace: { x: 500, y: 150 },
-  gardens: { x: 295, y: 255 },
-  hotel: { x: 700, y: 255 },
-  market: { x: 495, y: 345 },
-  coves: { x: 250, y: 445 },
-  harbour: { x: 680, y: 450 },
-};
+type Place = "palace" | "gardens" | "hotel" | "market" | "coves" | "harbour";
 
 function PlaceArt({ place }: { place: Place }) {
   switch (place) {
@@ -365,91 +358,6 @@ export function Ferry({ fill = 0, sailing = false }: { fill?: number; sailing?: 
   );
 }
 
-export function IslandMap({
-  flooded, tide, total, onPick, picks, myPick, selectable, nextFlood,
-}: {
-  flooded: Place[];
-  tide: number;
-  total: number;
-  onPick?: (p: Place) => void;
-  picks: { place: Place; seat: number; name: string }[];
-  myPick: Place | null;
-  selectable: boolean;
-  nextFlood: Place | null;
-  holdFill: number;
-}) {
-  const rise = Math.max(0, tide - 1) / Math.max(1, total);
-  return (
-    <svg viewBox="0 0 1000 600" className="island-map" role="group" aria-label="Map of Saltmere island">
-      <rect width="1000" height="600" fill="url(#g-sea)" />
-      <rect width="1000" height="600" fill="#0b2a33" opacity={0.35 * rise} />
-      <rect width="1000" height="600" fill="url(#p-waves)" opacity=".18" />
-      {/* reef shallows */}
-      <ellipse cx="500" cy="320" rx="455" ry="275" fill="url(#g-shallows)" />
-      {/* island */}
-      <path d="M140 420 C120 330 190 230 300 190 C360 110 440 70 520 78 C620 86 700 150 780 200 C880 260 900 380 840 450 C780 520 650 545 500 540 C340 538 170 520 140 420 Z" fill="#e9d6a8" />
-      <path d="M165 410 C150 330 210 245 310 205 C370 130 445 95 520 100 C610 108 690 165 765 212 C855 268 870 375 820 440 C765 505 645 525 500 522 C350 520 190 500 165 410 Z" fill="#3f8a5a" />
-      <path d="M380 210 C420 140 470 115 520 118 C590 124 640 170 650 230 C600 210 540 200 500 205 C450 210 410 215 380 210Z" fill="#2c6b4a" />
-      {/* paths */}
-      <path d="M500 190 C500 240 480 290 495 330 M495 360 C560 400 640 420 720 440 M495 360 C420 400 330 420 260 440 M330 270 C380 300 430 320 470 335 M670 270 C620 300 560 320 520 335" stroke="#e8d2b0" strokeWidth="5" fill="none" strokeDasharray="2 9" strokeLinecap="round" opacity=".8" />
-      {/* rising water at the coast */}
-      <path d="M140 420 C120 330 190 230 300 190 C360 110 440 70 520 78 C620 86 700 150 780 200 C880 260 900 380 840 450 C780 520 650 545 500 540 C340 538 170 520 140 420 Z" fill="none" stroke="#2fb3aa" strokeWidth={10 + rise * 70} opacity=".8" className="tideline" />
-
-      {/* pier and ferry */}
-      <rect x="800" y="470" width="120" height="8" fill="#6b4a2f" />
-      {[810, 850, 890].map((x) => <rect key={x} x={x} y="470" width="4" height="22" fill="#5a3d27" />)}
-      <g transform="translate(880 430) scale(1.15)"><Ferry /></g>
-
-      {(Object.keys(PLACE_POS) as Place[]).map((place) => {
-        const { x, y } = PLACE_POS[place];
-        const isFlooded = flooded.includes(place);
-        const here = picks.filter((p) => p.place === place);
-        const mine = myPick === place;
-        return (
-          <g
-            key={place}
-            transform={`translate(${x} ${y})`}
-            className={`place ${selectable ? "selectable" : ""} ${mine ? "mine" : ""} ${isFlooded ? "flooded" : ""}`}
-            onClick={selectable && onPick ? () => onPick(place) : undefined}
-            role={selectable ? "button" : undefined}
-            tabIndex={selectable ? 0 : undefined}
-            aria-label={selectable ? `Search ${place}` : undefined}
-            onKeyDown={selectable && onPick ? (e) => (e.key === "Enter" || e.key === " ") && onPick(place) : undefined}
-          >
-            <ellipse cx="0" cy="10" rx="92" ry="62" className="place-halo" />
-            <PlaceArt place={place} />
-            {isFlooded && (
-              <g className="flood-water">
-                <ellipse cx="0" cy="22" rx="86" ry="30" fill="#2fb3aa" opacity=".72" />
-                <ellipse cx="0" cy="22" rx="86" ry="30" fill="url(#p-waves)" opacity=".9" />
-              </g>
-            )}
-            {nextFlood === place && <text x="0" y="-58" className="next-flood" textAnchor="middle">Floods next</text>}
-            <g transform="translate(0 64)">
-              <rect x={-labelW(place, isFlooded) / 2} y="-13" width={labelW(place, isFlooded)} height="24" rx="12" className="place-label-bg" />
-              <text x="0" y="4" textAnchor="middle" className="place-label">{LABELS[place]}{isFlooded ? " · flooded" : ""}</text>
-            </g>
-            {here.map((p, i) => (
-              <g key={p.seat} transform={`translate(${-((here.length - 1) * 13) + i * 26} -50)`} className="pawn">
-                <circle r="11" fill={SEAT_COLORS[p.seat % 8]} stroke="#0b2a33" strokeWidth="2.5" />
-                <text y="4" textAnchor="middle" fontSize="11" fontWeight="700" fill="#0b2a33">{p.name.slice(0, 1).toUpperCase()}</text>
-              </g>
-            ))}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-const labelW = (place: Place, flooded: boolean) => (LABELS[place].length + (flooded ? 10 : 0)) * 8.4 + 26;
-
-const LABELS: Record<Place, string> = {
-  coves: "Turquoise Coves", gardens: "Hanging Gardens", market: "Pearl Market",
-  hotel: "Grand Hotel", palace: "Hilltop Palace", harbour: "Harbour",
-};
-
-/** The opening illustration on the home screen. */
 export function SceneHero() {
   return (
     <svg viewBox="0 0 800 340" preserveAspectRatio="xMidYMax slice" className="hero-scene" role="img" aria-label="A jewel-like island at dusk with a palace on the hill and an old ferry at the pier">

@@ -16,7 +16,7 @@ export function App() {
   if (session && !view) screen = <div className="loading"><p>Rejoining room {session.code}…</p></div>;
   else if (!view) screen = <Home />;
   else if (view.phase === "lobby") screen = <Lobby v={view} />;
-  else if (view.phase === "voyage" || view.phase === "over") screen = <End v={view} />;
+  else if (view.phase === "over") screen = <End v={view} />;
   else screen = <Game v={view} />;
 
   return (

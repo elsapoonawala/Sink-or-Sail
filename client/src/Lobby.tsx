@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type GameView, MAX_PLAYERS } from "../../shared/game";
+import { type GameView, MAX_PLAYERS, ROLES, ROLE_INFO } from "../../shared/game";
 import { Portrait } from "./art";
 import { CommsPanel } from "./Comms";
 import { HowTo } from "./HowTo";
@@ -14,6 +14,7 @@ export function Lobby({ v }: { v: GameView }) {
   const n = v.players.length;
   const wreckerText = v.settings.wrecker === "off" ? "Off" : v.settings.wrecker === "on" ? "On" : "Auto";
   const willHaveWrecker = v.wreckerCount > 0;
+  const me = v.players.find((p) => p.id === v.you);
   const hostName = v.players.find((p) => p.id === v.hostId)?.name ?? "the host";
 
   return (
@@ -37,8 +38,8 @@ export function Lobby({ v }: { v: GameView }) {
             {v.players.map((p) => (
               <li key={p.id}>
                 <button className={`crew-item ${!p.connected && !p.bot ? "away" : ""}`} onClick={() => setOpen(p.id)}>
-                  <Portrait role={null} seat={p.seat} size={54} />
-                  <span>{p.id === v.you ? `${p.name} (you)` : p.name}</span>
+                  <Portrait role={p.choice} seat={p.seat} size={54} />
+                  <span>{p.id === v.you ? `${p.name} (you)` : p.name}<small className="muted crew-role">{p.choice ? ROLE_INFO[p.choice].name : p.bot ? "picks at the start" : "choosing…"}</small></span>
                   {p.id === v.hostId && <small className="tag">host</small>}
                   {p.bot && <small className="tag">bot</small>}
                   {!p.connected && !p.bot && <small className="tag">away</small>}
@@ -49,18 +50,46 @@ export function Lobby({ v }: { v: GameView }) {
               <li>
                 <button className="crew-item add" onClick={() => act({ type: "addBot" })}>
                   <span className="add-circle"><Icon name="bot" /></span>
-                  <span>Add a practice bot</span>
+                  <span>Add a bot</span>
+                </button>
+              </li>
+            )}
+            {host && n < 4 && (
+              <li>
+                <button className="crew-item add" onClick={() => act({ type: "fill" })}>
+                  <span className="add-circle"><Icon name="plus" /></span>
+                  <span>Fill to 4 with bots</span>
                 </button>
               </li>
             )}
           </ul>
         </div>
 
+        <div className="roles">
+          <h2>Choose your character</h2>
+          <div className="role-grid">
+            {ROLES.map((r) => {
+              const taker = v.players.find((p) => p.choice === r);
+              const mine = taker?.id === v.you;
+              return (
+                <button key={r} className={`role-card ${mine ? "mine" : ""} ${taker && !mine ? "taken" : ""}`} onClick={() => act({ type: "role", role: mine ? null : r })} disabled={!!taker && !mine} aria-pressed={mine}>
+                  <Portrait role={r} seat={me?.seat ?? 0} size={58} />
+                  <b>{ROLE_INFO[r].name.replace("The ", "")}</b>
+                  <small>{ROLE_INFO[r].power}</small>
+                  {ROLE_INFO[r].mounted && <span className="tag">on horseback</span>}
+                  {taker && !mine && <span className="taken-by">{taker.name}</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p className="small muted">Bots and anyone who doesn't choose get a character dealt at the start.</p>
+        </div>
+
         <div className="settings">
           <div className="setting">
             <div>
               <b>Game length</b>
-              <p className="small muted">{v.settings.quick ? "Quick: 3 tides, about 12 minutes" : "Full: 5 tides, about 20 minutes"}</p>
+              <p className="small muted">{v.settings.quick ? "Quick: 3 tides of 2½ minutes, about 8 minutes" : "Full: 5 tides of 3 minutes, about 15 minutes"}</p>
             </div>
             <div className="seg" role="group" aria-label="Game length">
               <button className={!v.settings.quick ? "on" : ""} onClick={() => host && act({ type: "settings", quick: false })} disabled={!host}>Full</button>
@@ -86,13 +115,13 @@ export function Lobby({ v }: { v: GameView }) {
 
         <div className="lobby-cta">
           {host ? (
-            <button className="btn primary big" onClick={() => act({ type: "start" })} disabled={n < 2}>
-              {n < 2 ? "Waiting for at least 2 players" : `Cast off with ${n} players`}
+            <button className="btn primary big" onClick={() => act({ type: "start" })} >
+              {n < 2 ? "Play solo (or add bots)" : `Start with ${n} players`}
             </button>
           ) : (
             <p className="waiting">Waiting for {hostName} to start the game…</p>
           )}
-          {host && n < 2 && <p className="small muted">Playing alone? Add a practice bot.</p>}
+          {host && n < 2 && <p className="small muted">Playing alone? Fill the seats with bots, or wait for friends to join with the code.</p>}
           <button className="btn ghost small" onClick={leaveRoom}>Leave room</button>
         </div>
       </section>

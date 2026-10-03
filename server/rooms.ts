@@ -1,13 +1,13 @@
-// Room manager: owns every live GameState, runs phase timers and practice bots,
-// and pushes a redacted view to each connected player after every change.
+// Room manager: owns every live GameState, runs the world clock and practice bots,
+// streams positions ten times a second and pushes a redacted view after every change.
 import { randomBytes, randomInt } from "node:crypto";
 import {
-  type GameState, type Place, type Offer,
-  addPlayer, advance, cancelOffer, createGame, everyoneDone, loadCard, makeOffer, pickPlace, player,
-  removePlayer, respondOffer, setDone, startGame, toggleReady, viewFor, MAX_PLAYERS,
+  type GameState, type Offer, type Role, type Supply,
+  accuse, addPlayer, barter, cancelOffer, castVote, chooseRole, createGame, dive, dropItem, dump, lightLamp,
+  makeOffer, moveTo, player, removePlayer, respondOffer, setReady, startGame, tick, toggleMount, viewFor, MAX_PLAYERS,
 } from "../shared/game";
-import { BOT_NAMES, botAct } from "../shared/bots";
-import type { ChatMessage, ClientAction, SignalKey, VoiceState } from "../shared/protocol";
+import { BOT_NAMES, type Brain, botTick, newBrain } from "../shared/bots";
+import type { ChatMessage, ClientAction, PosMessage, SignalKey, VoiceState } from "../shared/protocol";
 import { SIGNALS } from "../shared/protocol";
 
 const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -20,7 +20,9 @@ export interface Room {
   chat: ChatMessage[];
   voice: Record<string, VoiceState>;
   timer: NodeJS.Timeout | null;
-  botTimers: NodeJS.Timeout[];
+  brains: Map<string, Brain>;
+  lastTick: number;
+  sentVersion: number;
   lastActive: number;
   lastChat: Map<string, number[]>;
   dropTimers: Map<string, NodeJS.Timeout>;
@@ -58,7 +60,9 @@ export class Rooms {
       chat: [],
       voice: {},
       timer: null,
-      botTimers: [],
+      brains: new Map(),
+      lastTick: 0,
+      sentVersion: -1,
       lastActive: Date.now(),
       lastChat: new Map(),
       dropTimers: new Map(),
@@ -157,12 +161,17 @@ export class Rooms {
         if (typeof a.quick === "boolean") s.settings.quick = a.quick;
         if (a.wrecker === "auto" || a.wrecker === "on" || a.wrecker === "off") s.settings.wrecker = a.wrecker;
         break;
-      case "addBot": {
+      case "addBot":
+      case "fill": {
         if (!isHost) return "Only the host can add bots.";
         if (s.phase !== "lobby") return "Bots can only join in the lobby.";
-        const used = new Set(s.players.map((p) => p.name));
-        const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Deckhand ${s.players.length + 1}`;
-        err = addPlayer(s, this.newId(), name, true);
+        const target = a.type === "fill" ? Math.max(4, s.players.length) : s.players.length + 1;
+        while (s.players.length < Math.min(MAX_PLAYERS, target)) {
+          const used = new Set(s.players.map((p) => p.name));
+          const name = BOT_NAMES.find((n) => !used.has(n)) ?? `Deckhand ${s.players.length + 1}`;
+          err = addPlayer(s, this.newId(), name, true);
+          if (err) break;
+        }
         break;
       }
       case "kick": {
@@ -176,37 +185,64 @@ export class Rooms {
         if (sock) this.io.toSocket(sock, "kicked", {});
         break;
       }
+      case "role":
+        err = chooseRole(s, pid, (a.role as Role) || null);
+        break;
       case "start":
         if (!isHost) return "Only the host can start the game.";
         err = startGame(s, rng, Date.now());
-        if (!err) this.systemChat(room, "The game has begun. Good luck, and watch the tide.");
+        if (!err && process.env.TIDE_SECONDS) {
+          // Testing aid: shorter tides.
+          s.tideMs = Number(process.env.TIDE_SECONDS) * 1000;
+          s.endsAt = s.startedAt + s.totalTides * s.tideMs;
+          s.phaseEndsAt = s.startedAt + s.tideMs;
+        }
+        if (!err) {
+          room.brains = new Map(s.players.filter((p) => p.bot).map((p) => [p.id, newBrain()]));
+          this.systemChat(room, "The tide is turning. Find supplies and carry them to the ferry.");
+        }
         break;
       case "lobby":
         if (!isHost) return "Only the host can return to the lobby.";
-        if (s.phase !== "over" && s.phase !== "voyage") return null;
+        if (s.phase !== "over" && s.phase !== "sailing") return null;
         s.phase = "lobby";
         s.phaseEndsAt = null;
+        s.version++;
         // Drop seats of people who left during the game.
         for (const p of s.players.filter((x) => !x.connected && !x.bot)) {
           removePlayer(s, p.id);
           room.tokens.delete(p.id);
         }
         break;
-      case "pick":
-        err = pickPlace(s, pid, a.place as Place);
+      case "drop":
+        err = dropItem(s, pid, a.itemId, Date.now());
         break;
-      case "done":
-        err = setDone(s, pid, a.done !== false);
+      case "mount":
+        err = toggleMount(s, pid);
+        break;
+      case "dive":
+        err = dive(s, pid, Date.now());
+        break;
+      case "barter":
+        err = barter(s, pid, a.kind as Supply, Date.now(), rng);
+        break;
+      case "lamp":
+        err = lightLamp(s, pid, Date.now());
+        break;
+      case "dump":
+        err = dump(s, pid, Date.now(), rng);
         break;
       case "ready":
-        err = toggleReady(s, pid, a.ready);
+        err = setReady(s, pid, a.ready !== false);
         break;
-      case "load":
-        err = loadCard(s, pid, a.cardId);
+      case "accuse":
+        err = accuse(s, pid, a.target, Date.now());
+        break;
+      case "vote":
+        err = castVote(s, pid, !!a.yes, Date.now());
         break;
       case "offer":
-        err = makeOffer(s, pid, a.to, a.give as Offer["give"], a.want as Offer["want"]);
-        if (!err && player(s, a.to)?.bot) this.scheduleBots(room, 1500, 3500);
+        err = makeOffer(s, pid, a.to, a.give as Offer["give"], a.want as Offer["want"], Date.now());
         break;
       case "respond":
         err = respondOffer(s, pid, a.offerId, !!a.accept);
@@ -217,9 +253,20 @@ export class Rooms {
       default:
         return "Unknown action.";
     }
-    if (err) return err;
+    s.version++;
     this.afterChange(room);
-    return null;
+    return err;
+  }
+
+  /** A position report from a player's device. Rejected moves snap them back. */
+  move(code: string, pid: string, m: { x: number; y: number; d: number; m: boolean }) {
+    const room = this.rooms.get(code);
+    if (!room || room.state.phase !== "play") return;
+    if (!moveTo(room.state, pid, Number(m?.x), Number(m?.y), Number(m?.d), !!m?.m, Date.now())) {
+      const p = player(room.state, pid);
+      const sock = room.sockets.get(pid);
+      if (p && sock) this.io.toSocket(sock, "snap", { x: p.x, y: p.y });
+    }
   }
 
   chat(code: string, pid: string, textRaw: string) {
@@ -238,10 +285,6 @@ export class Rooms {
     if (this.rateLimited(room, pid)) return;
     const msg = { from: pid, key, at: Date.now() };
     for (const sock of room.sockets.values()) this.io.toSocket(sock, "signal", msg);
-    if (key === "ready") {
-      toggleReady(room.state, pid, true);
-      this.broadcast(room);
-    }
   }
 
   voice(code: string, pid: string, v: VoiceState) {
@@ -291,49 +334,43 @@ export class Rooms {
   }
 
   broadcast(room: Room) {
+    room.sentVersion = room.state.version;
     for (const [pid, sock] of room.sockets) this.io.toSocket(sock, "state", { ...viewFor(room.state, pid), serverTime: Date.now() });
   }
 
-  private lastPhaseKey = new WeakMap<Room, string>();
-
-  /** Re-arm timers and bots after any change, and end a phase early when everyone is done. */
+  /** Start or stop the world clock to match the phase, and push the new view. */
   private afterChange(room: Room) {
-    const s = room.state;
-    const key = `${s.round}:${s.tide}:${s.phase}`;
-    const phaseChanged = this.lastPhaseKey.get(room) !== key;
-    this.lastPhaseKey.set(room, key);
-
-    if (room.timer) clearTimeout(room.timer);
-    room.timer = null;
-    if (s.phaseEndsAt) {
-      const early = everyoneDone(s);
-      const wait = early ? 900 : Math.max(0, s.phaseEndsAt - Date.now());
-      room.timer = setTimeout(() => {
-        advance(s, rng, Date.now());
-        this.afterChange(room);
-      }, wait);
-    }
-    if (phaseChanged) {
-      for (const t of room.botTimers) clearTimeout(t);
-      room.botTimers = [];
-      const fast = s.phase === "flip" || s.phase === "reveal";
-      this.scheduleBots(room, fast ? 400 : 2500, fast ? 2500 : 9000);
+    const live = room.state.phase === "play" || room.state.phase === "sailing";
+    if (live && !room.timer) {
+      room.lastTick = Date.now();
+      room.timer = setInterval(() => this.step(room), 100);
+    } else if (!live && room.timer) {
+      clearInterval(room.timer);
+      room.timer = null;
     }
     this.broadcast(room);
   }
 
-  private scheduleBots(room: Room, min: number, max: number) {
+  private step(room: Room) {
     const s = room.state;
-    for (const p of s.players.filter((x) => x.bot)) {
-      const run = (tries: number) => {
-        if (botAct(s, p.id, rng)) this.afterChange(room);
-        // Keep acting (e.g. loading a second crate, answering new offers).
-        if (tries > 0 && (s.phase === "load" || s.phase === "trade")) {
-          room.botTimers.push(setTimeout(() => run(tries - 1), 1200 + Math.random() * 1500));
-        }
-      };
-      room.botTimers.push(setTimeout(() => run(3), min + Math.random() * (max - min)));
+    const now = Date.now();
+    const dt = Math.min(0.25, (now - room.lastTick) / 1000);
+    room.lastTick = now;
+    const claimed = new Set<string>();
+    for (const p of s.players) {
+      if (!p.bot) continue;
+      let b = room.brains.get(p.id);
+      if (!b) room.brains.set(p.id, (b = newBrain()));
+      botTick(s, p, b, now, dt, rng, claimed);
     }
+    tick(s, now, rng);
+    // Positions every frame; the full view only when something else changed.
+    const pos: PosMessage = {
+      t: now,
+      p: s.players.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.dir * 100), (p.moving ? 1 : 0) | (p.mounted ? 2 : 0) | (now < p.busyUntil ? 4 : 0)]),
+    };
+    for (const sock of room.sockets.values()) this.io.toSocket(sock, "pos", pos);
+    if (s.version !== room.sentVersion) this.afterChange(room);
   }
 
   private sweep() {
@@ -341,8 +378,7 @@ export class Rooms {
     for (const [code, room] of this.rooms) {
       const idle = now - room.lastActive;
       if ((room.sockets.size === 0 && idle > 30 * 60 * 1000) || idle > 6 * 60 * 60 * 1000) {
-        if (room.timer) clearTimeout(room.timer);
-        room.botTimers.forEach(clearTimeout);
+        if (room.timer) clearInterval(room.timer);
         this.rooms.delete(code);
       }
     }

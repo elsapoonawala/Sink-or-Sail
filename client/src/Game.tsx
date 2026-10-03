@@ -1,410 +1,378 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CARD_INFO, type CardView, type GameView, type Place, PLACE_INFO, PLACES, ROLE_INFO, SUPPLIES } from "../../shared/game";
-import { CardArt, IslandMap, PearlIcon, Portrait } from "./art";
-import { ChatPanel, CommsPanel, ShipLog, SignalBar, VoicePanel } from "./Comms";
+// The in-game screen: the living island with a brass-and-velvet HUD over it.
+import { useEffect, useRef, useState } from "react";
+import {
+  type GameView, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, SUPPLIES, TRADE_R,
+  carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall,
+} from "../../shared/game";
+import { ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
+import { CardArt, PearlIcon, Portrait } from "./art";
+import { ChatPanel, SignalBar } from "./Comms";
 import { HowTo } from "./HowTo";
-import { act, leaveRoom, setChatOpen, toast, useStore } from "./net";
-import { Allegiance, PlayerChip, PlayerSheet } from "./People";
-import { setSound, sfx, soundOn } from "./sound";
+import { act, leaveRoom, live, setChatOpen, toast, useStore } from "./net";
+import { Allegiance, PeopleSheet, PlayerSheet } from "./People";
+import { setSound, soundOn, startSea } from "./sound";
 import { OffersTray, TradeComposer } from "./Trade";
-import { Dial, Icon, MuteButton, Sheet } from "./ui";
+import { Icon, Sheet, copyText } from "./ui";
+import { pttDown, pttUp, toggleMute, useVoice, voiceSupported } from "./voice";
+import { MiniMap, World, type WorldApi } from "./World";
 
-const PHASE_COPY: Record<string, { title: string; hint: string }> = {
-  flood: { title: "The tide rises", hint: "Watch the island. One place floods every tide." },
-  search: { title: "Search the island", hint: "Tap a place on the map. Flooded places give 1 card." },
-  reveal: { title: "The search party returns", hint: "Here's what you found." },
-  trade: { title: "Trade", hint: "Tap a player to swap cards. Pearls sweeten a deal." },
-  load: { title: "Load the ferry", hint: "Tap a card, then load it. Up to 2 per tide." },
-  flip: { title: "The crates are opened", hint: "Enough aboard? Tap Ready to leave." },
-};
+type Panel = null | "chat" | "people" | "menu" | "barter" | "you" | "map" | "help";
 
-const SUPPLY_LABEL = { fuel: "Fuel", medicine: "Medicine", tools: "Tools" } as const;
+function useNow(ms: number) {
+  const { clockOffset } = useStore();
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  return Date.now() + clockOffset;
+}
+
+function mmss(ms: number) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
 
 export function Game({ v }: { v: GameView }) {
+  const api = useRef<WorldApi | null>(null);
+  const [panel, setPanel] = useState<Panel>(null);
+  const [sheetFor, setSheetFor] = useState<string | null>(null);
+  const [tradeWith, setTradeWith] = useState<string | null>(null);
+  const [intro, setIntro] = useState(true);
+  const now = useNow(250);
+  const seenAt = useRef(new Map<number, number>());
+  const seen = (n: number) => {
+    if (!seenAt.current.has(n)) seenAt.current.set(n, now);
+    return seenAt.current.get(n)!;
+  };
   const { unread } = useStore();
   const me = v.players.find((p) => p.id === v.you)!;
-  const [sheet, setSheet] = useState<null | "comms" | "help" | "places" | "role" | "menu">(null);
-  const [player, setPlayer] = useState<string | null>(null);
-  const [tradeTo, setTradeTo] = useState<string | null | undefined>(undefined);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [sound, setSoundState] = useState(soundOn());
-  const copy = PHASE_COPY[v.phase] ?? { title: "", hint: "" };
+  const pos = api.current?.me() ?? live.pos.get(v.you) ?? me;
 
-  usePhaseEffects(v, () => setSheet("role"));
-
-  // Keep the selection valid as the hand changes.
   useEffect(() => {
-    if (selected && !v.hand.some((c) => c.id === selected)) setSelected(null);
-  }, [v.hand, selected]);
-  useEffect(() => setChatOpen(sheet === "comms"), [sheet]);
+    setChatOpen(panel === "chat");
+  }, [panel]);
+  useEffect(() => {
+    startSea();
+  }, []);
+  // The intro card shows your character, then gets out of the way.
+  useEffect(() => {
+    const t = setTimeout(() => setIntro(false), 14000);
+    return () => clearTimeout(t);
+  }, [v.round]);
 
-  const others = v.players.filter((p) => p.id !== v.you);
-  const readyCount = v.players.filter((p) => p.ready).length;
-  const picks = v.players.filter((p) => p.pick && (v.phase !== "search" || p.id === v.you)).map((p) => ({ place: p.pick as Place, seat: p.seat, name: p.name }));
+  const tideLeft = v.tideStartedAt + v.tideMs - now;
+  const lastTide = v.tide >= v.totalTides;
+  const nextFloods = ZONE_IDS.filter((z) => floodsAtTide(z, v.totalTides) === v.tide + 1).map((z) => ZONES[z].name);
+  const sailing = v.phase === "sailing";
 
-  const pick = (place: Place) => {
-    sfx.click();
-    act({ type: "pick", place });
-    setSheet(null);
-  };
-
-  const load = async () => {
-    if (!selected) return;
-    const err = await act({ type: "load", cardId: selected });
-    if (!err) {
-      sfx.thud();
-      setSelected(null);
+  // What can I do right here?
+  const others = v.players.filter((p) => p.id !== v.you && !p.brig);
+  const nearest = others
+    .map((p) => {
+      const l = live.pos.get(p.id) ?? p;
+      return { p, d: Math.hypot(l.x - pos.x, l.y - pos.y) };
+    })
+    .filter((x) => x.d < TRADE_R)
+    .sort((a, b) => a.d - b.d)[0]?.p;
+  const actions: { key: string; label: string; sub?: string; onClick: () => void; tone?: "primary" | "danger" | "ghost" }[] = [];
+  const busy = now < me.busyUntil;
+  if (v.phase === "play" && !me.brig && !busy) {
+    const dive = nearDive(pos);
+    if (dive >= 0) {
+      const wait = v.diveReady[dive] - now;
+      actions.push({ key: "dive", label: wait > 0 ? `Oysters regrow in ${Math.ceil(wait / 1000)}s` : "Dive for pearls", sub: me.role === "diver" ? "+4 pearls" : "+2 pearls", onClick: () => act({ type: "dive" }), tone: wait > 0 ? "ghost" : "primary" });
     }
-  };
-
-  const cta = (() => {
-    switch (v.phase) {
-      case "flood":
-        return { label: "The tide is rising…", disabled: true };
-      case "search":
-        return me.pick
-          ? { label: `Searching ${PLACE_INFO[me.pick].name} · tap to change`, onClick: () => setSheet("places"), quiet: true }
-          : { label: "Choose a place to search", onClick: () => setSheet("places") };
-      case "reveal":
-        return { label: "Unpacking your finds…", disabled: true };
-      case "trade":
-        return me.done
-          ? { label: "Done trading · tap to reopen", onClick: () => act({ type: "done", done: false }), quiet: true }
-          : { label: "Make an offer", onClick: () => setTradeTo(null) };
-      case "load": {
-        const sel = v.hand.find((c) => c.id === selected);
-        if (me.done || me.loadedThisTide >= 2) return { label: me.loadedThisTide ? "Loaded · waiting for the others" : "Done · waiting for the others", disabled: true, quiet: true };
-        if (sel) return { label: `Load ${CARD_INFO[sel.kind === "spoiled" ? "spoiled" : sel.kind].name} onto the ferry`, onClick: load };
-        return { label: v.hand.length ? "Tap a card in your hand to load it" : "Nothing to load", disabled: true, quiet: true };
-      }
-      case "flip":
-        return me.ready
-          ? { label: `You're ready to leave · ${readyCount} of ${v.players.length}`, onClick: () => act({ type: "ready", ready: false }), quiet: true }
-          : { label: `Ready to leave? (${readyCount} of ${v.players.length} ready)`, onClick: () => { sfx.click(); act({ type: "ready", ready: true }); } };
-      default:
-        return { label: "", disabled: true };
+    if (nearStall(pos)) actions.push({ key: "barter", label: "Barter at the stall", sub: `${BARTER_COST} pearls a crate · ${v.marketStock} left`, onClick: () => setPanel("barter"), tone: "primary" });
+    if (nearLamp(pos)) actions.push({ key: "lamp", label: v.lampTide === v.tide ? "Lamp already lit this tide" : "Light the lamp", sub: "Reveals every crate", onClick: () => act({ type: "lamp" }), tone: v.lampTide === v.tide ? "ghost" : "primary" });
+    if (!me.mounted && nearStables(pos)) actions.push({ key: "mount", label: "Saddle a horse", sub: "Ride much faster", onClick: () => act({ type: "mount" }), tone: "primary" });
+    if (me.wrecker && nearGangway(pos)) {
+      const wait = DUMP_COOLDOWN - (now - (me.lastDump ?? -DUMP_COOLDOWN));
+      actions.push({ key: "dump", label: wait > 0 ? `Lie low ${Math.ceil(wait / 1000)}s` : "Sink a crate", sub: "Secret Wrecker move", onClick: () => act({ type: "dump" }), tone: wait > 0 ? "ghost" : "danger" });
     }
-  })() as { label: string; onClick?: () => void; disabled?: boolean; quiet?: boolean };
+    if (nearest) actions.push({ key: "trade", label: `Trade with ${nearest.name}`, onClick: () => setTradeWith(nearest.id), tone: "ghost" });
+    if (onDock(pos.x, pos.y)) actions.push({ key: "ready", label: me.ready ? "Not ready yet" : "Ready to sail", sub: me.ready ? "Tap to wait longer" : "Sails when most are ready", onClick: () => act({ type: "ready", ready: !me.ready }), tone: me.ready ? "ghost" : "primary" });
+  }
 
-  const secondary = (() => {
-    if (v.phase === "trade" && !me.done) return { label: "Done trading", onClick: () => act({ type: "done", done: true }) };
-    if (v.phase === "load" && !me.done && me.loadedThisTide < 2) return { label: me.loadedThisTide ? "Done loading" : "Skip loading", onClick: () => act({ type: "done", done: true }) };
-    return null;
-  })();
+  const swimmingNow = !me.mounted && swimming(pos.x, pos.y, { level: seaLevel(v.tide, v.tideStartedAt, v.totalTides, now), secretFound: v.secretFound, caveOpen: v.caveOpen });
+  const full = me.carry.length >= carryLimit(me);
+  const holdFull = v.slots >= v.capacity;
+  const short = SUPPLIES.filter((k) => v.supplies[k] < v.needs[k]);
+  let hint = "";
+  if (me.brig) hint = "You're locked in the ferry's brig. You'll sail, but you can't help or hinder.";
+  else if (busy) hint = "Diving…";
+  else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
+  else if (v.sailAt) hint = `The ferry sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
+  else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";
+  else if (me.carry.length && nearGangway(pos) && holdFull) hint = "The hold is full. Trade or drop what you carry.";
+  else if (full) hint = "Hands full. Carry it to the ferry's gangway (follow the gold arrow).";
+  else if (me.carry.length) hint = "Walk onto the glowing gangway by the ferry to load what you carry.";
+  else if (short.length) hint = `Find glowing crates. The ferry still needs ${short.map((k) => `${v.needs[k] - v.supplies[k]} ${k}`).join(", ")}.`;
+  else hint = "Supplies are aboard! Grab treasure, then gather on the pier and call Ready.";
+
+  const lampOn = now < v.lampUntil;
+  const myItems = me.carry;
 
   return (
-    <main className={`game phase-${v.phase}`}>
-      <header className="topbar">
-        <div className="tides" aria-label={`Tide ${v.tide} of ${v.totalTides}`}>
-          <span className="eyebrow">Tide</span>
-          <div className="tide-pips">
-            {Array.from({ length: v.totalTides }, (_, i) => (
-              <span key={i} className={i + 1 < v.tide ? "past" : i + 1 === v.tide ? "now" : ""}>{i + 1}</span>
-            ))}
-          </div>
-        </div>
-        <div className="phase-title">
-          <h1>{copy.title}</h1>
-          <p>{copy.hint}</p>
-        </div>
-        <Dial endsAt={v.phaseEndsAt} total={v.phaseSeconds} />
-        <div className="top-tools">
-          <button className="icon-btn" onClick={() => setSheet("help")} aria-label="How to play"><Icon name="help" /></button>
-          <button className="icon-btn" onClick={() => { setSound(!sound); setSoundState(!sound); }} aria-label={sound ? "Sound off" : "Sound on"}>
-            <Icon name={sound ? "sound" : "soundOff"} />
-          </button>
-          <button className="icon-btn" onClick={() => setSheet("menu")} aria-label="Room menu"><span className="code-mini">{v.code}</span></button>
-        </div>
-      </header>
+    <main className={`play ${sailing ? "sailing" : ""}`}>
+      <World v={v} api={api} onTapPlayer={(pid) => setSheetFor(pid)} />
 
-      <nav className="strip" aria-label="Players">
-        <PlayerChip v={v} p={me} onOpen={() => setSheet("role")} />
-        {others.map((p) => (
-          <PlayerChip key={p.id} v={v} p={p} onOpen={(id) => (v.phase === "trade" ? setTradeTo(id) : setPlayer(id))} />
+      {/* top left: the tide */}
+      <section className="hud-tide" aria-label="Tide">
+        <div className="tide-row">
+          <span className="eyebrow">Tide {v.tide} of {v.totalTides}</span>
+          <b className={`tide-clock ${tideLeft < 20_000 ? "low" : ""}`}>{sailing ? "Sailing" : mmss(tideLeft)}</b>
+        </div>
+        <div className="tide-track" aria-hidden="true">
+          {Array.from({ length: v.totalTides }, (_, i) => (
+            <span key={i} className={i + 1 < v.tide ? "past" : i + 1 === v.tide ? "now" : ""}>
+              {i + 1 === v.tide && <i style={{ width: `${Math.min(100, 100 * (1 - tideLeft / v.tideMs))}%` }} />}
+            </span>
+          ))}
+        </div>
+        <p className="tide-next small">
+          {sailing ? "The Saltmere Queen is leaving." : lastTide ? "When this runs out, the ferry leaves." : nextFloods.length ? `Next tide floods ${nextFloods.join(" & ")}` : "The water keeps rising."}
+        </p>
+        {lampOn && <p className="tide-next small lamp">Lighthouse lit: every crate shows on the map.</p>}
+      </section>
+
+      {/* top centre: the ferry's hold */}
+      <section className="hud-hold" aria-label="The ferry's hold">
+        {SUPPLIES.map((k) => (
+          <div key={k} className={`gauge ${v.supplies[k] >= v.needs[k] ? "ok" : ""}`} title={`${KIND_INFO[k].name}: ${v.supplies[k]} of ${v.needs[k]} aboard`}>
+            <CardArt kind={k} size={22} />
+            <b>{v.supplies[k]}/{v.needs[k]}</b>
+          </div>
         ))}
-      </nav>
-
-      <section className="board">
-        <div className="map-wrap">
-          <IslandMap
-            flooded={v.flooded}
-            tide={v.tide}
-            total={v.totalTides}
-            onPick={pick}
-            picks={picks}
-            myPick={me.pick}
-            selectable={v.phase === "search"}
-            nextFlood={v.nextFlood}
-            holdFill={v.used / v.capacity}
-          />
-          <a className="mini-gauges" href="#ferry" aria-label="Ferry supplies">
-            {SUPPLIES.map((k) => (
-              <span key={k} className={v.supplies[k] >= v.needs[k] ? "ok" : ""}><CardArt kind={k} size={16} /> {v.supplies[k]}/{v.needs[k]}</span>
-            ))}
-            <span className="slots">{v.used}/{v.capacity}</span>
-          </a>
-          {v.nextFlood && v.phase !== "flip" && <p className="foresight">Your foresight: <b>{PLACE_INFO[v.nextFlood].name}</b> floods next.</p>}
+        <div className={`gauge slots ${holdFull ? "full" : ""}`} title="Space in the hold">
+          <span className="slot-icon" aria-hidden="true">▦</span>
+          <b>{v.slots}/{v.capacity}</b>
         </div>
-        <FerryPanel v={v} />
       </section>
 
-      {v.phase === "trade" && <OffersTray v={v} />}
-
-      <section className="hand-wrap" aria-label="Your hand">
-        <div className="hand-head">
-          <span className="eyebrow">Your hand</span>
-          <span className="pearls"><PearlIcon /> {me.pearls} pearl{me.pearls === 1 ? "" : "s"}</span>
-          {v.phase === "load" && <span className="small muted">{me.loadedThisTide} of 2 loaded this tide</span>}
-        </div>
-        <Hand v={v} selected={selected} onSelect={(id) => { if (v.phase === "load" && !me.done && me.loadedThisTide < 2) { sfx.click(); setSelected(selected === id ? null : id); } }} />
-      </section>
-
-      <aside className="side">
-        <ShipLog v={v} />
-        <CommsPanel v={v} />
-      </aside>
-
-      <footer className="actionbar">
-        <MuteButton big />
-        <div className="cta-stack">
-          <button className={`btn cta ${cta.quiet ? "quiet" : ""}`} onClick={cta.onClick} disabled={cta.disabled}>{cta.label}</button>
-          {secondary && <button className="btn ghost small" onClick={secondary.onClick}>{secondary.label}</button>}
-        </div>
-        <button className="icon-btn chat-btn" onClick={() => setSheet("comms")} aria-label="Chat and signals">
-          <Icon name="chat" />
-          {unread > 0 && <span className="unread">{unread}</span>}
+      {/* top right: map and menu */}
+      <section className="hud-map">
+        <button className="map-btn" onClick={() => setPanel("map")} aria-label="Open the big map">
+          <MiniMap v={v} size={150} />
         </button>
-      </footer>
+        <div className="hud-icons">
+          <button className="icon-btn" onClick={() => setPanel("help")} aria-label="How to play"><Icon name="help" /></button>
+          <button className="icon-btn" onClick={() => setPanel("menu")} aria-label="Menu"><Icon name="anchor" /></button>
+        </div>
+      </section>
 
-      {v.phase === "flood" && <FloodBanner v={v} />}
-      {v.phase === "reveal" && <DrawReveal v={v} />}
-      {v.phase === "flip" && <FlipReveal v={v} />}
+      {/* feed: recent news, fading out after a few seconds */}
+      <ol className="hud-feed" aria-live="polite">
+        {v.log.slice(-3).filter((l) => now - seen(l.n) < 9000).map((l) => <li key={l.n} className={`log-${l.kind}`}>{l.text}</li>)}
+      </ol>
 
-      {sheet === "places" && (
-        <Sheet title="Where will you search?" onClose={() => setSheet(null)}>
-          <div className="place-list">
-            {PLACES.map((pl) => {
-              const fl = v.flooded.includes(pl);
-              return (
-                <button key={pl} className={`place-row ${me.pick === pl ? "on" : ""} ${fl ? "flooded" : ""}`} onClick={() => pick(pl)}>
-                  <b>{PLACE_INFO[pl].name}</b>
-                  <span>{PLACE_INFO[pl].yields}</span>
-                  <small>{fl ? (me.role === "diver" ? "Flooded, but you dive at full strength" : "Flooded: 1 card") : PLACE_INFO[pl].blurb}</small>
-                  {v.nextFlood === pl && <small className="next">Floods next tide</small>}
-                </button>
-              );
-            })}
+      {/* banners */}
+      {v.sailAt && <div className="banner sail">The ferry sails in {Math.ceil((v.sailAt - now) / 1000)}s</div>}
+      {v.vote?.outcome === "open" && <VoteCard v={v} now={now} />}
+      <div className="hud-offers"><OffersTray v={v} /></div>
+      {intro && me.role && (
+        <div className="intro-card" onClick={() => setIntro(false)}>
+          <Portrait role={me.role} seat={me.seat} size={64} />
+          <div>
+            <span className="eyebrow">You are</span>
+            <h3>{ROLE_INFO[me.role].name}</h3>
+            <p className="small">{ROLE_INFO[me.role].power}</p>
+            {me.wrecker && <p className="small wreck-note">…and secretly the <b>Wrecker</b>. Sink crates at the gangway without being caught.</p>}
+            <p className="small muted">Walk with WASD, arrows, a click, or drag on your phone. Grab glowing crates and carry them to the ferry.</p>
           </div>
-        </Sheet>
+        </div>
       )}
-      {sheet === "comms" && (
-        <Sheet title="Talk to the table" onClose={() => setSheet(null)}>
-          <VoicePanel />
+
+      {/* bottom left: walkie-talkie and comms */}
+      <section className="hud-comms">
+        <Walkie />
+        <button className="icon-btn big" onClick={() => setPanel("chat")} aria-label="Chat and signals">
+          <Icon name="chat" />
+          {unread > 0 && <span className="badge">{unread}</span>}
+        </button>
+        <button className="icon-btn big" onClick={() => setPanel("people")} aria-label="Everyone">
+          <Portrait role={me.role} seat={me.seat} size={30} />
+        </button>
+      </section>
+
+      {/* bottom centre: what you carry */}
+      <section className="hud-carry">
+        <p className="hint">{hint}</p>
+        <div className="carry-row">
+          {Array.from({ length: carryLimit(me) }, (_, i) => {
+            const it = myItems[i];
+            return it ? (
+              <button key={it.id} className="slot filled" onClick={() => act({ type: "drop", itemId: it.id })} title={`Drop ${KIND_INFO[it.kind].name}`} aria-label={`Carrying ${KIND_INFO[it.kind].name}. Tap to drop.`}>
+                <CardArt kind={it.kind} size={28} />
+              </button>
+            ) : (
+              <span key={i} className="slot" aria-hidden="true" />
+            );
+          })}
+          <span className="pearls" title="Your pearls"><PearlIcon size={18} /> {me.pearls}</span>
+        </div>
+      </section>
+
+      {/* bottom right: actions */}
+      <section className="hud-actions">
+        {actions.slice(0, 3).map((a) => (
+          <button key={a.key} className={`act-btn ${a.tone ?? "primary"}`} onClick={a.onClick}>
+            <b>{a.label}</b>
+            {a.sub && <small>{a.sub}</small>}
+          </button>
+        ))}
+      </section>
+
+      {/* sheets */}
+      {panel === "chat" && (
+        <Sheet title="Signals and chat" onClose={() => setPanel(null)}>
           <SignalBar />
           <ChatPanel v={v} />
         </Sheet>
       )}
-      {sheet === "help" && (
-        <Sheet title="How to play" onClose={() => setSheet(null)} wide>
+      {panel === "people" && <PeopleSheet v={v} onClose={() => setPanel(null)} onOpen={(pid) => { setPanel(null); setSheetFor(pid); }} />}
+      {panel === "barter" && <BarterSheet v={v} onClose={() => setPanel(null)} />}
+      {panel === "help" && (
+        <Sheet title="How to play" onClose={() => setPanel(null)}>
           <HowTo />
-        </Sheet>
-      )}
-      {sheet === "role" && me.role && (
-        <Sheet title="Your role" onClose={() => setSheet(null)}>
-          <div className="player-sheet">
-            <Portrait role={me.role} seat={me.seat} size={110} />
-            <div className="ps-info">
-              <h4>{ROLE_INFO[me.role].name}</h4>
-              <p className="muted small">{ROLE_INFO[me.role].wear}</p>
-              <p><b className="tag">{ROLE_INFO[me.role].short}</b> {ROLE_INFO[me.role].power}</p>
-            </div>
-          </div>
           <Allegiance wrecker={!!me.wrecker} count={v.wreckerCount} />
-          <button className="btn primary" onClick={() => setSheet(null)}>Got it</button>
         </Sheet>
       )}
-      {sheet === "menu" && (
-        <Sheet title={`Room ${v.code}`} onClose={() => setSheet(null)}>
-          <p>Friends can't join mid-game, but anyone who drops out can reopen the link to get their seat back.</p>
-          <button className="btn ghost danger" onClick={leaveRoom}>Leave this game</button>
+      {panel === "map" && (
+        <Sheet title="Saltmere" onClose={() => setPanel(null)} wide>
+          <div className="big-map"><MiniMap v={v} size={Math.min(640, window.innerWidth - 60)} /></div>
+          <ul className="legend small">
+            {ZONE_IDS.map((z) => {
+              const n = floodsAtTide(z, v.totalTides);
+              return <li key={z}><b>{ZONES[z].name}</b> <span className="muted">{ZONES[z].blurb}{n ? ` Floods at tide ${n}.` : ""}</span></li>;
+            })}
+          </ul>
         </Sheet>
       )}
-      {player && <PlayerSheet v={v} pid={player} onClose={() => setPlayer(null)} onOffer={(id) => setTradeTo(id)} />}
-      {tradeTo !== undefined && v.phase === "trade" && <TradeComposer v={v} to={tradeTo} onClose={() => setTradeTo(undefined)} />}
+      {panel === "menu" && <MenuSheet v={v} onClose={() => setPanel(null)} />}
+      {sheetFor && <PlayerSheet v={v} pid={sheetFor} onClose={() => setSheetFor(null)} onTrade={(pid) => setTradeWith(pid)} />}
+      {tradeWith && <TradeComposer v={v} to={tradeWith} onClose={() => setTradeWith(null)} />}
     </main>
   );
 }
 
-function Hand({ v, selected, onSelect }: { v: GameView; selected: string | null; onSelect: (id: string) => void }) {
-  const sorted = useMemo(() => {
-    const order = ["fuel", "medicine", "tools", "compass", "diamond", "spoiled"];
-    return [...v.hand].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
-  }, [v.hand]);
-  if (!sorted.length) return <p className="empty-hand muted">No cards yet. Search the island to find some.</p>;
-  return (
-    <div className="hand">
-      {sorted.map((c) => (
-        <HandCard key={c.id} c={c} selected={selected === c.id} loadable={v.phase === "load"} onClick={() => onSelect(c.id)} />
-      ))}
-    </div>
-  );
-}
-
-function HandCard({ c, selected, loadable, onClick }: { c: CardView; selected: boolean; loadable: boolean; onClick: () => void }) {
-  const info = CARD_INFO[c.kind];
-  return (
-    <button className={`card ${selected ? "selected" : ""} ${loadable ? "loadable" : ""} ${c.kind}`} onClick={onClick} aria-pressed={selected} aria-label={c.kind === "spoiled" ? `Spoiled crate disguised as ${c.disguisedAs}` : info.name}>
-      <CardArt kind={c.kind} size={46} />
-      <span className="card-name">{c.kind === "spoiled" ? "Spoiled" : info.name}</span>
-      <span className="card-meta">
-        {c.kind === "spoiled" ? `looks like ${c.disguisedAs}` : c.kind === "diamond" ? "worth 3 · 2 slots" : c.kind === "compass" ? "−1 fuel needed" : "supply"}
-      </span>
-    </button>
-  );
-}
-
-function FerryPanel({ v }: { v: GameView }) {
-  const me = v.players.find((p) => p.id === v.you)!;
-  const ready = v.players.filter((p) => p.ready).length;
-  const slots: { key: string; span: number; kind?: string; revealed: boolean; mine: boolean; fresh: boolean }[] = v.hold.map((c) => ({
-    key: c.id, span: c.slots, kind: c.kind, revealed: c.revealed, mine: c.mine, fresh: c.tide === v.tide,
-  }));
-  const free = Math.max(0, v.capacity - v.used);
-  const compass = v.hold.some((c) => c.revealed && c.kind === "compass");
-  return (
-    <div className="ferry-panel" id="ferry">
-      <div className="fp-head">
-        <h2>The <em>Saltmere Queen</em></h2>
-        <span className="small muted">{v.used} of {v.capacity} slots</span>
-      </div>
-      <div className="gauges">
-        {SUPPLIES.map((k) => {
-          const have = v.supplies[k];
-          const need = v.needs[k];
-          const ok = have >= need;
-          return (
-            <div key={k} className={`gauge ${ok ? "ok" : ""}`}>
-              <CardArt kind={k} size={26} />
-              <div className="g-bar" aria-hidden="true">
-                {Array.from({ length: need }, (_, i) => <span key={i} className={i < have ? "on" : ""} />)}
-              </div>
-              <b>{have}/{need}</b>
-              <span className="sr">{SUPPLY_LABEL[k]}: {have} of {need}</span>
-            </div>
-          );
-        })}
-        {compass && <p className="small brass">The compass is aboard: one less fuel needed.</p>}
-      </div>
-      <div className="hold" aria-label="Ferry hold">
-        {slots.map((s) => (
-          <span key={s.key} className={`crate span${s.span} ${s.revealed ? "open" : "shut"} ${s.kind ?? ""} ${s.mine ? "mine" : ""} ${s.fresh ? "fresh" : ""}`} title={s.revealed ? s.kind : s.mine ? `Your ${s.kind}, sealed` : "Sealed crate"}>
-            {s.revealed && s.kind ? <CardArt kind={s.kind as CardView["kind"]} size={20} /> : <span className="q">{s.mine ? "•" : "?"}</span>}
-          </span>
-        ))}
-        {Array.from({ length: free }, (_, i) => <span key={`f${i}`} className="crate empty" />)}
-      </div>
-      <p className="small muted hold-note">Sealed crates open at the end of each tide.</p>
-      <button className={`btn ready ${me.ready ? "on" : ""}`} onClick={() => { sfx.click(); act({ type: "ready", ready: !me.ready }); }}>
-        <Icon name="anchor" size={18} /> {me.ready ? "You're ready to leave" : "Ready to leave"} <span className="muted">· {ready}/{v.players.length}</span>
-      </button>
-      <p className="small muted">The ferry sails at the end of a tide once more than half are ready, or after tide {v.totalTides} no matter what.</p>
-    </div>
-  );
-}
-
-function FloodBanner({ v }: { v: GameView }) {
-  const last = [...v.log].reverse().find((l) => l.kind === "flood");
-  return (
-    <div className="overlay flood-banner" aria-live="assertive">
-      <div className="wave-anim" aria-hidden="true" />
-      <div className="ob-card">
-        <span className="eyebrow">Tide {v.tide} of {v.totalTides}</span>
-        <h2>{last?.text ?? "The tide rises."}</h2>
-      </div>
-    </div>
-  );
-}
-
-function DrawReveal({ v }: { v: GameView }) {
-  const d = v.draws[v.you];
-  if (!d) return null;
-  return (
-    <div className="overlay draw-reveal" aria-live="polite">
-      <div className="ob-card">
-        <span className="eyebrow">{PLACE_INFO[d.place].name}</span>
-        <h2>{d.cards.length || d.pearls ? "You found" : "You came back empty-handed"}</h2>
-        <div className="found">
-          {d.cards.map((k, i) => (
-            <span key={i} className="found-card" style={{ animationDelay: `${i * 160}ms` }}>
-              <CardArt kind={k} size={60} />
-              <b>{CARD_INFO[k].name}</b>
-            </span>
-          ))}
-          {d.pearls > 0 && (
-            <span className="found-card" style={{ animationDelay: `${d.cards.length * 160}ms` }}>
-              <CardArt kind="pearl" size={60} />
-              <b>+{d.pearls} pearls</b>
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function FlipReveal({ v }: { v: GameView }) {
-  const fresh = v.hold.filter((c) => c.tide === v.tide && c.revealed);
-  const spoiled = fresh.filter((c) => c.kind === "spoiled").length;
-  const [hidden, setHidden] = useState(false);
+/** Hold to talk, like a walkie-talkie. The small button beside it mutes or opens your mic. */
+function Walkie() {
+  const vu = useVoice();
+  const { voice } = useStore();
+  const anyoneTalking = Object.values(vu.speaking).some(Boolean);
   useEffect(() => {
-    const t = setTimeout(() => setHidden(true), 4200);
-    return () => clearTimeout(t);
+    const down = (e: KeyboardEvent) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+      if ((e.key === "v" || e.key === "V") && !e.repeat) pttDown();
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === "v" || e.key === "V") pttUp();
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
   }, []);
-  if (hidden) return null;
+  if (!voiceSupported) return null;
+  const live = vu.joined && !vu.muted;
+  const others = Object.values(voice).filter((x) => x.on).length - (vu.joined ? 1 : 0);
   return (
-    <div className="overlay flip-reveal" onClick={() => setHidden(true)}>
-      <div className="ob-card">
-        <span className="eyebrow">End of tide {v.tide}</span>
-        <h2>{fresh.length ? "The crates are opened" : "Nobody loaded anything this tide"}</h2>
-        <div className="flips">
-          {fresh.map((c, i) => (
-            <span key={c.id} className={`flip-card ${c.kind}`} style={{ animationDelay: `${i * 260}ms` }}>
-              <span className="flip-inner" style={{ animationDelay: `${i * 260}ms` }}>
-                <span className="flip-back" />
-                <span className="flip-front"><CardArt kind={c.kind!} size={44} /><b>{CARD_INFO[c.kind!].name}</b></span>
-              </span>
-            </span>
-          ))}
-        </div>
-        {spoiled > 0 && <p className="alert-text">{spoiled} spoiled crate{spoiled > 1 ? "s" : ""}. Someone is wrecking the voyage.</p>}
-        <p className="small muted">Tap to continue</p>
-      </div>
+    <div className="walkie-wrap">
+      <button
+        className={`walkie ${live ? "live" : ""} ${anyoneTalking ? "rx" : ""}`}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); pttDown(); }}
+        onPointerUp={pttUp}
+        onPointerCancel={pttUp}
+        onContextMenu={(e) => e.preventDefault()}
+        aria-label={vu.joined ? "Hold to talk on the walkie-talkie (or hold V)" : "Turn on the walkie-talkie"}
+        title={vu.joined ? "Hold to talk (or hold V)" : "Turn on the walkie-talkie"}
+      >
+        <WalkieIcon />
+        <small>{!vu.joined ? (vu.joining ? "Tuning…" : "Walkie") : live ? "On air" : "Hold to talk"}</small>
+      </button>
+      {vu.joined && (
+        <button className={`walkie-mute ${vu.muted ? "muted" : "open"}`} onClick={() => toggleMute()} aria-label={vu.muted ? "Open mic (talk hands-free)" : "Mute your mic"} title={vu.muted ? "Open mic" : "Mute"}>
+          <Icon name={vu.muted ? "micOff" : "mic"} size={18} />
+        </button>
+      )}
+      {vu.joined && <span className="walkie-count small">{others > 0 ? `${others} on channel` : "Channel quiet"}</span>}
     </div>
   );
 }
 
-/** Sounds, toasts and the role card at the right moments. */
-function usePhaseEffects(v: GameView, showRole: () => void) {
-  const prev = useRef<{ phase: string; round: number; offers: Set<string> }>({ phase: "", round: -1, offers: new Set() });
-  useEffect(() => {
-    const p = prev.current;
-    if (p.phase !== v.phase || p.round !== v.round) {
-      if (v.phase === "flood") v.tide > 1 ? sfx.flood() : sfx.horn();
-      if (v.phase === "reveal") sfx.deal();
-      if (v.phase === "trade") sfx.pearl();
-      if (v.phase === "flip") {
-        sfx.flip();
-        if (v.hold.some((c) => c.tide === v.tide && c.kind === "spoiled")) setTimeout(sfx.alert, 900);
-      }
-      if (v.phase === "flood" && v.tide === 1 && p.round !== v.round) showRole();
-    }
-    for (const o of v.offers) {
-      if (o.to === v.you && o.status === "open" && !p.offers.has(o.id)) {
-        const from = v.players.find((x) => x.id === o.from)?.name ?? "Someone";
-        toast(`${from} sent you an offer.`, "info");
-        sfx.pearl();
-      }
-    }
-    prev.current = { phase: v.phase, round: v.round, offers: new Set(v.offers.map((o) => o.id)) };
-  }, [v, showRole]);
+function WalkieIcon() {
+  return (
+    <svg viewBox="0 0 32 44" width="26" height="36" aria-hidden="true">
+      <rect x="20" y="1" width="3" height="12" rx="1.5" fill="#1d1410" />
+      <rect x="5" y="10" width="22" height="32" rx="5" fill="#1d2b33" stroke="#d2a74e" strokeWidth="1.5" />
+      <rect x="9" y="14" width="14" height="8" rx="2" fill="#7fe0d2" opacity=".85" />
+      {[0, 1, 2].map((r) => <rect key={r} x="10" y={26 + r * 4} width="12" height="1.6" rx=".8" fill="#d2a74e" opacity=".8" />)}
+      <circle cx="12" cy="38.5" r="1.4" fill="#b8434f" />
+    </svg>
+  );
 }
+
+function VoteCard({ v, now }: { v: GameView; now: number }) {
+  const vote = v.vote!;
+  const name = (id: string) => (id === v.you ? "you" : v.players.find((p) => p.id === id)?.name ?? "someone");
+  const me = v.players.find((p) => p.id === v.you)!;
+  const voted = vote.yes.includes(v.you) || vote.no.includes(v.you);
+  const isTarget = vote.target === v.you;
+  return (
+    <div className="vote-card">
+      <p><b>{name(vote.by)}</b> accuses <b>{name(vote.target)}</b> of wrecking. Lock them in the brig?</p>
+      <p className="small muted">{vote.yes.length} yes · {vote.no.length} no · {Math.ceil((vote.endsAt - now) / 1000)}s</p>
+      {!isTarget && !me.brig && (
+        <div className="row gap">
+          <button className={`btn small ${vote.yes.includes(v.you) ? "primary" : "ghost"}`} onClick={() => act({ type: "vote", yes: true })}>Brig them</button>
+          <button className={`btn small ${vote.no.includes(v.you) ? "primary" : "ghost"}`} onClick={() => act({ type: "vote", yes: false })}>Let them be</button>
+        </div>
+      )}
+      {isTarget && <p className="small">Plead your case on the walkie-talkie!</p>}
+      {voted && !isTarget && <p className="small muted">You can change your vote until it closes.</p>}
+    </div>
+  );
+}
+
+function BarterSheet({ v, onClose }: { v: GameView; onClose: () => void }) {
+  const me = v.players.find((p) => p.id === v.you)!;
+  const buy = async (k: Supply) => {
+    const err = await act({ type: "barter", kind: k });
+    if (!err) onClose();
+  };
+  return (
+    <Sheet title="The Pearl Market" onClose={onClose}>
+      <p className="muted small">The merchant trades a crate for {BARTER_COST} pearls{me.role === "jeweler" ? ", and never turns you down." : ", if he likes your face. He sometimes says no; just ask again."} {v.marketStock} crate{v.marketStock === 1 ? "" : "s"} left this tide. You have {me.pearls} pearls.</p>
+      <div className="barter-grid">
+        {SUPPLIES.map((k) => (
+          <button key={k} className="barter-item" onClick={() => buy(k)} disabled={me.pearls < BARTER_COST || v.marketStock <= 0}>
+            <CardArt kind={k} size={40} />
+            <b>{KIND_INFO[k].name}</b>
+            <small><PearlIcon size={12} /> {BARTER_COST}</small>
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
+
+function MenuSheet({ v, onClose }: { v: GameView; onClose: () => void }) {
+  const [sound, setS] = useState(soundOn());
+  const link = `${location.origin}/r/${v.code}`;
+  return (
+    <Sheet title={`Room ${v.code}`} onClose={onClose}>
+      <div className="menu-list">
+        <button className="btn ghost" onClick={async () => toast((await copyText(link)) ? "Link copied." : "Copy didn't work.")}><Icon name="copy" size={16} /> Copy room link</button>
+        <button className="btn ghost" onClick={() => { setSound(!sound); setS(!sound); }}><Icon name={sound ? "sound" : "soundOff"} size={16} /> Sound {sound ? "on" : "off"}</button>
+        {v.hostId === v.you && <button className="btn ghost" onClick={() => { act({ type: "lobby" }); onClose(); }} disabled={v.phase === "play"}>Back to lobby</button>}
+        <button className="btn ghost danger" onClick={leaveRoom}>Leave the game</button>
+        <p className="small muted">Keys: WASD or arrows to walk, hold V to talk. On a phone, drag anywhere to steer or tap where to go.</p>
+      </div>
+    </Sheet>
+  );
+}
+

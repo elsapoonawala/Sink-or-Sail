@@ -74,6 +74,7 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("move", (m: { x: number; y: number; d: number; m: boolean }) => code && rooms.move(code, pid, m));
   socket.on("chat", (text: string) => code && rooms.chat(code, pid, text));
   socket.on("signal", (key: SignalKey) => code && rooms.signal(code, pid, key));
   socket.on("voice", (v: VoiceState) => code && rooms.voice(code, pid, v));

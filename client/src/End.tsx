@@ -31,8 +31,9 @@ export function End({ v }: { v: GameView }) {
       : short.includes("medicine")
         ? "Fever swept the deck before land was sighted"
         : "The old hull gave way halfway across";
+  const left = r.fortunes.filter((f) => !f.aboard).map((f) => name(f.id));
   const sub = r.success
-    ? `Every supply was aboard${r.sailedEarly ? ", and you left with time to spare" : " as the harbour went under"}.`
+    ? `Every supply was aboard${r.early ? ", and you left with time to spare" : " as the last tide came in"}.${left.length ? ` ${left.length > 1 ? `${left.slice(0, -1).join(", ")} and ${left[left.length - 1]}` : left[0]} missed the boat.` : ""}`
     : `The ferry sailed short of ${short.map((k) => `${r.needs[k] - r.supplies[k]} ${LABEL[k]}`).join(", ")}.`;
 
   return (
@@ -43,7 +44,7 @@ export function End({ v }: { v: GameView }) {
           <rect y="150" width="800" height="110" fill="url(#g-sea)" />
           <rect y="160" width="800" height="100" fill="url(#p-waves)" opacity=".3" />
           <path className="sinking-island" d="M-40 160 C0 120 60 110 120 130 C150 140 170 150 190 160 Z" fill="#2c6b4a" />
-          <g className="sail-path"><g transform="translate(0 112) scale(.8)"><Ferry fill={Math.min(1, v.used / v.capacity)} sailing /></g></g>
+          <g className="sail-path"><g transform="translate(0 112) scale(.8)"><Ferry fill={Math.min(1, v.slots / v.capacity)} sailing /></g></g>
           {r.success && <path className="far-shore" d="M700 160 C730 140 780 136 820 140 L820 160Z" fill="#3f8a5a" />}
         </svg>
       </div>
@@ -85,6 +86,17 @@ export function End({ v }: { v: GameView }) {
             <h2>Fortunes carried off</h2>
             <ol>
               {r.fortunes.filter((f) => !v.players.find((p) => p.id === f.id)?.wrecker).map((f) => {
+                if (!f.aboard) {
+                  const p = v.players.find((x) => x.id === f.id)!;
+                  return (
+                    <li key={f.id} className="left-behind">
+                      <Portrait role={p.role} seat={p.seat} size={40} />
+                      <span className="f-name">{name(f.id)}</span>
+                      <span className="f-detail muted">left behind on the island</span>
+                      <b className="f-total">0</b>
+                    </li>
+                  );
+                }
                 const p = v.players.find((x) => x.id === f.id)!;
                 const crowned = r.grandFortune.includes(f.id);
                 return (
@@ -107,7 +119,7 @@ export function End({ v }: { v: GameView }) {
           {host ? (
             <>
               <button className="btn primary big" onClick={() => act({ type: "start" })} disabled={v.phase !== "over"}>
-                {v.phase === "over" ? "Play again" : "The ferry is sailing…"}
+                Play again
               </button>
               <button className="btn ghost" onClick={() => act({ type: "lobby" })}>Back to lobby</button>
             </>

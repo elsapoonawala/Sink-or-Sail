@@ -4,9 +4,10 @@ export const SIGNALS = [
   { key: "fuel", label: "Need fuel" },
   { key: "medicine", label: "Need medicine" },
   { key: "tools", label: "Need tools" },
+  { key: "come", label: "Over here!" },
   { key: "trade", label: "Trade?" },
-  { key: "ready", label: "Ready to leave" },
-  { key: "distrust", label: "Don't trust it" },
+  { key: "pier", label: "To the pier!" },
+  { key: "distrust", label: "Watch the gangway" },
   { key: "yes", label: "Yes" },
   { key: "no", label: "No" },
 ] as const;
@@ -32,17 +33,31 @@ export interface VoiceState {
   muted: boolean;
 }
 
+/** Compact positions sent ten times a second: [id, x, y, dir*100, flags]. flags: 1 moving, 2 mounted, 4 busy. */
+export type PosTuple = [string, number, number, number, number];
+export interface PosMessage {
+  t: number;
+  p: PosTuple[];
+}
+
 export type ClientAction =
   | { type: "settings"; quick?: boolean; wrecker?: "auto" | "on" | "off" }
   | { type: "addBot" }
+  | { type: "fill" }
   | { type: "kick"; target: string }
   | { type: "start" }
   | { type: "lobby" }
-  | { type: "pick"; place: string }
-  | { type: "done"; done?: boolean }
+  | { type: "role"; role: string | null }
+  | { type: "drop"; itemId: string }
+  | { type: "mount" }
+  | { type: "dive" }
+  | { type: "barter"; kind: string }
+  | { type: "lamp" }
+  | { type: "dump" }
   | { type: "ready"; ready?: boolean }
-  | { type: "load"; cardId: string }
-  | { type: "offer"; to: string; give: { cardIds: string[]; pearls: number }; want: { kinds: Record<string, number>; pearls: number } }
+  | { type: "accuse"; target: string }
+  | { type: "vote"; yes: boolean }
+  | { type: "offer"; to: string; give: { itemIds: string[]; pearls: number }; want: { kinds: Record<string, number>; pearls: number } }
   | { type: "respond"; offerId: string; accept: boolean }
   | { type: "cancel"; offerId: string };
 

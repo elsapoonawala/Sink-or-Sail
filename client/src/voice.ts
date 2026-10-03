@@ -57,7 +57,8 @@ function me() {
   return getStore().session?.pid ?? "";
 }
 
-export async function joinVoice() {
+/** Join voice. Walkie-talkie style: you start muted and press to talk. */
+export async function joinVoice(startMuted = true) {
   if (ui.joined || ui.joining) return;
   set({ joining: true });
   try {
@@ -79,8 +80,10 @@ export async function joinVoice() {
     local = null;
     toast("No microphone available, so you'll hear everyone but can't speak. Signals and chat still work.", "alert");
   }
-  set({ joined: true, joining: false, hasMic, muted: !hasMic });
-  sendVoice({ on: true, muted: !hasMic });
+  const muted = !hasMic || (startMuted && !pttHeld);
+  local?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  set({ joined: true, joining: false, hasMic, muted });
+  sendVoice({ on: true, muted });
   syncPeers();
   loop();
 }
@@ -95,8 +98,41 @@ export function leaveVoice() {
   sendVoice({ on: false, muted: false });
 }
 
+let pttHeld = false;
+let pttWasMuted = true;
+
+/** Press and hold to talk; letting go mutes you again (unless you were already live). */
+export function pttDown() {
+  pttHeld = true;
+  if (!ui.joined) {
+    joinVoice(true);
+    return;
+  }
+  pttWasMuted = ui.muted;
+  if (ui.muted && ui.hasMic) setMuted(false);
+}
+
+export function pttUp() {
+  if (!pttHeld) return;
+  pttHeld = false;
+  if (ui.joined && ui.hasMic && pttWasMuted && !ui.muted) setMuted(true);
+}
+
+function setMuted(muted: boolean) {
+  local?.getAudioTracks().forEach((t) => (t.enabled = !muted));
+  set({ muted });
+  sendVoice({ on: true, muted });
+}
+
+/** How loud each person is right now (0 or 1), for the talking rings in the world. */
+export function voiceLevel(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, on] of Object.entries(ui.speaking)) if (on) out[k] = 1;
+  return out;
+}
+
 export function toggleMute() {
-  if (!ui.joined) return joinVoice();
+  if (!ui.joined) return joinVoice(false);
   if (!ui.hasMic) {
     toast("Your browser didn't share a microphone. Check its permissions, then rejoin voice.", "alert");
     return;
