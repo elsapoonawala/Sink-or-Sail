@@ -8,7 +8,7 @@ import { FERRY, GANGWAY, H, W, ZONES, ZONE_IDS, footing, seaLevel, swimming, tid
 import { getStore, live, sendMove } from "./net";
 import {
   type Prop, drawCrate, drawDock, drawFerry, drawGangway, drawGlints, drawItem, drawLandmarks, drawPearls, drawPerson,
-  drawProp, drawRoads, paintTerrain, paintWater, scatterProps,
+  drawProp, drawRoads, paintTerrain, paintWater, scatterProps, seaColor,
 } from "./scene";
 import { sfx } from "./sound";
 import { voiceLevel } from "./voice";
@@ -336,7 +336,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
 
       // ---- draw ----
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#0e4a5e";
+      ctx.fillStyle = seaColor(level);
       ctx.fillRect(0, 0, vw, vh);
       ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (vw / 2 - cam.x * scale), dpr * (vh / 2 - cam.y * scale));
       const x0 = cam.x - halfW - 80;

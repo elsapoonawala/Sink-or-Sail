@@ -153,7 +153,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
   if (p.pearls >= 3 && s.marketStock > 0 && needed.length && footing(MARKET_STALL.x, MARKET_STALL.y + 20, g) > 0) {
     return set({ kind: "barter", x: MARKET_STALL.x, y: MARKET_STALL.y + 20, supply: needed[0] });
   }
-  if (s.lampTide !== s.tide && rng() < 0.15 && footing(LAMP.x, LAMP.y + 25, g) > 0) return set({ kind: "lamp", x: LAMP.x, y: LAMP.y + 25 });
+  if (s.tide >= 3 && s.lampTide !== s.tide && rng() < 0.15 && footing(LAMP.x, LAMP.y + 25, g) > 0) return set({ kind: "lamp", x: LAMP.x, y: LAMP.y + 25 });
   const spot = Math.floor(rng() * DIVE_SPOTS.length);
   if (rng() < 0.4 && now >= s.diveReady[spot]) {
     const d = DIVE_SPOTS[spot];

@@ -133,6 +133,16 @@ export function paintWater(target: HTMLCanvasElement, level: number) {
   ctx.putImageData(img, 0, 0);
 }
 
+/** The colour of open sea at the current level, matching the painted water, for beyond the map's edge. */
+export function seaColor(level: number) {
+  const depth = level + 2.2;
+  const t = Math.min(1, depth / 4.2);
+  const c = mix([96, 214, 200], [14, 72, 96], Math.pow(t, 0.7));
+  const a = Math.min(240, 105 + depth * 70) / 255;
+  const bed = BANDS[0][1];
+  return `rgb(${Math.round(c[0] * a + bed[0] * (1 - a))},${Math.round(c[1] * a + bed[1] * (1 - a))},${Math.round(c[2] * a + bed[2] * (1 - a))})`;
+}
+
 // ---------- scenery ----------
 
 export interface Prop {
