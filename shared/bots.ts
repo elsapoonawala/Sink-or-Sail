@@ -4,7 +4,7 @@
 import {
   type GameState, type Kind, type Player, type Rng, type Supply, PIER, SUPPLIES,
   barter, carryLimit, castVote, dive, dump, ground, lightLamp, nearDive, nearGangway, nearLamp, nearStall, needsFor,
-  needsMet, respondOffer, setReady, slotsUsed, speedOf, strike, suppliesIn, capacityOf, STRIKE_R,
+  needsMet, respondOffer, savedForPeople, setReady, slotsUsed, speedOf, strike, suppliesIn, capacityOf, STRIKE_R,
 } from "./game";
 import { DIVE_SPOTS, GANGWAY, LAMP, MARKET_STALL, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
 
@@ -137,6 +137,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     if (claimed.has(c.id) && b.goal?.kind !== "crate") continue;
     if (c.zone === "cave" && !s.caveOpen) continue;
     if (footing(c.x, c.y, g) <= 0) continue;
+    if (savedForPeople(s, p, c, now)) continue;
     let v = worth(s, c.kind, short);
     if (p.wrecker && SUPPLIES.includes(c.kind as Supply)) v += 3; // hoard supplies so nobody else loads them
     if (v <= 0) continue;

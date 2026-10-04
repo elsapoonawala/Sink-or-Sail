@@ -593,6 +593,17 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
   return s.version !== v;
 }
 
+/** Bots leave crates that a person is close to, so people always have something to find.
+ *  In the last tide they stop holding back and fetch whatever the ferry still needs. */
+export function savedForPeople(s: GameState, p: Player, c: { x: number; y: number }, now: number): boolean {
+  if (!p.bot || p.wrecker || s.endsAt - now < s.tideMs) return false;
+  return s.players.some((q) => {
+    if (q.bot || !q.connected || q.brig) return false;
+    const d = dist(q.x, q.y, c.x, c.y);
+    return d < 550 || d < dist(p.x, p.y, c.x, c.y);
+  });
+}
+
 function collect(s: GameState, p: Player, now: number) {
   if (now < p.busyUntil) return;
   for (const pile of s.piles) {
@@ -604,7 +615,7 @@ function collect(s: GameState, p: Player, now: number) {
   }
   s.piles = s.piles.filter((x) => x.n > 0);
   if (p.carry.length >= carryLimit(p)) return;
-  const i = s.crates.findIndex((c) => dist(p.x, p.y, c.x, c.y) < PICKUP_R);
+  const i = s.crates.findIndex((c) => dist(p.x, p.y, c.x, c.y) < PICKUP_R && !savedForPeople(s, p, c, now));
   if (i < 0) return;
   const c = s.crates[i];
   s.crates.splice(i, 1);
