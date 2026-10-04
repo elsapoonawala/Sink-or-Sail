@@ -28,6 +28,16 @@ export function TradeComposer({ v, to, onClose }: { v: GameView; to: string; onC
   return (
     <Sheet title={`Trade with ${them.name}`} onClose={onClose} wide>
       <div className="composer">
+        {me.order && !me.order.done && (
+          <p className="small order-note">
+            Your order still needs{" "}
+            {(["fuel", "medicine", "tools"] as const)
+              .filter((k) => (me.order!.want[k] ?? 0) > (me.order!.got[k] ?? 0))
+              .map((k) => `${(me.order!.want[k] ?? 0) - (me.order!.got[k] ?? 0)} ${KIND_INFO[k].name.toLowerCase()}`)
+              .join(" and ")}
+            . Crates only count once you load them yourself.
+          </p>
+        )}
         <section>
           <h4>You give</h4>
           {me.carry.length ? (

@@ -4,7 +4,7 @@
 import {
   type GameState, type Kind, type Player, type Rng, type Supply, PIER, SUPPLIES,
   barter, carryLimit, castVote, dive, dump, ground, lightLamp, nearDive, nearGangway, nearLamp, nearStall, needsFor,
-  needsMet, respondOffer, savedForPeople, setReady, slotsUsed, speedOf, strike, suppliesIn, capacityOf, STRIKE_R,
+  makeOffer, needsMet, respondOffer, savedForPeople, setReady, slotsUsed, speedOf, strike, suppliesIn, capacityOf, STRIKE_R,
 } from "./game";
 import { DIVE_SPOTS, GANGWAY, LAMP, MARKET_STALL, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
 
@@ -29,10 +29,11 @@ export interface Brain {
   answered: Set<string>;
   votedOn: string;
   voteAt: number;
+  offerAt: number;
 }
 
 export function newBrain(): Brain {
-  return { goal: null, path: [], thinkAt: 0, progressAt: 0, lastX: 0, lastY: 0, answered: new Set(), votedOn: "", voteAt: 0 };
+  return { goal: null, path: [], thinkAt: 0, progressAt: 0, lastX: 0, lastY: 0, answered: new Set(), votedOn: "", voteAt: 0, offerAt: 0 };
 }
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -47,6 +48,14 @@ function shortfall(s: GameState): Record<Supply, number> {
     out[k] = Math.max(0, need[k] - have[k] - carried);
   }
   return out;
+}
+
+/** How many more of this kind the player's own order still wants (counting what they carry). */
+function orderNeeds(p: Player, kind: Kind, countCarried = true): number {
+  const o = p.order;
+  if (!o || o.done || !SUPPLIES.includes(kind as Supply)) return 0;
+  const k = kind as Supply;
+  return Math.max(0, (o.want[k] ?? 0) - (o.got[k] ?? 0) - (countCarried ? p.carry.filter((c) => c.kind === k).length : 0));
 }
 
 /** What a bot carries that's meant for the ferry (not its cutlass). */
@@ -65,6 +74,7 @@ export function botTick(s: GameState, p: Player, b: Brain, now: number, dt: numb
   let changed = answerOffers(s, p, b, now, rng) || vote(s, p, b, now, rng);
   if (now < p.busyUntil) return changed;
   changed = swing(s, p, now, rng) || changed;
+  changed = proposeTrade(s, p, b, now, rng) || changed;
 
   // Arrived somewhere? Do the thing that brought us here.
   const g = b.goal;
@@ -139,6 +149,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     if (footing(c.x, c.y, g) <= 0) continue;
     if (savedForPeople(s, p, c, now)) continue;
     let v = worth(s, c.kind, short);
+    if (v > 0 && orderNeeds(p, c.kind)) v += 3;
     if (p.wrecker && SUPPLIES.includes(c.kind as Supply)) v += 3; // hoard supplies so nobody else loads them
     if (v <= 0) continue;
     const score = v / (dist(p, c) + 250);
@@ -225,7 +236,28 @@ function walk(s: GameState, p: Player, b: Brain, now: number, dt: number) {
   }
 }
 
-function valueFor(s: GameState, k: Kind) {
+/** A bot near someone holding what its order wants offers a swap, or pearls. */
+function proposeTrade(s: GameState, p: Player, b: Brain, now: number, rng: Rng): boolean {
+  if (now < b.offerAt) return false;
+  b.offerAt = now + 4000 + rng() * 4000;
+  if (s.offers.some((o) => o.from === p.id && o.status === "open")) return false;
+  for (const q of s.players) {
+    if (q.id === p.id || q.brig || dist(p, q) > 100) continue;
+    const want = q.carry.find((c) => orderNeeds(p, c.kind) > 0);
+    if (!want) continue;
+    const spare = cargo(p).find((c) => SUPPLIES.includes(c.kind as Supply) && !orderNeeds(p, c.kind) && c.kind !== want.kind);
+    const give = spare ? { itemIds: [spare.id], pearls: 0 } : p.pearls >= 2 ? { itemIds: [], pearls: 2 } : null;
+    if (!give) continue;
+    if (!makeOffer(s, p.id, q.id, give, { kinds: { [want.kind]: 1 }, pearls: 0 }, now)) {
+      b.offerAt = now + 15000 + rng() * 10000;
+      return true;
+    }
+  }
+  return false;
+}
+
+function valueFor(s: GameState, k: Kind, p: Player) {
+  if (orderNeeds(p, k, false)) return 5;
   const short = shortfall(s);
   if (k === "diamond") return 3;
   if (k === "compass") return 3;
@@ -240,8 +272,8 @@ function answerOffers(s: GameState, p: Player, b: Brain, now: number, rng: Rng):
     if (now - o.at < 1800) continue;
     b.answered.add(o.id);
     const from = s.players.find((q) => q.id === o.from);
-    const gain = o.giveItems.reduce((t, c) => t + valueFor(s, c.kind), 0) + o.give.pearls;
-    const cost = (Object.entries(o.want.kinds) as [Kind, number][]).reduce((t, [k, n]) => t + valueFor(s, k) * n, 0) + o.want.pearls;
+    const gain = o.giveItems.reduce((t, c) => t + valueFor(s, c.kind, p), 0) + o.give.pearls;
+    const cost = (Object.entries(o.want.kinds) as [Kind, number][]).reduce((t, [k, n]) => t + valueFor(s, k, p) * n, 0) + o.want.pearls;
     const yes = from?.role === "jeweler" || gain >= cost || (gain >= cost - 1 && rng() < 0.5);
     const err = respondOffer(s, p.id, o.id, yes);
     if (err && yes) respondOffer(s, p.id, o.id, false);

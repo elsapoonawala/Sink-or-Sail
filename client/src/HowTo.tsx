@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { ROLES, ROLE_INFO } from "../../shared/game";
 import { CardArt, Ferry, PearlIcon } from "./art";
 
 const SLIDES = [
   {
-    title: "Saltmere is sinking",
-    body: "You and your friends are on a jewel of an island as the sea rises. One old ferry, the Saltmere Queen, waits at the pier. Load her and be aboard when she sails.",
+    title: "The goal",
+    body: "Saltmere is sinking. Work together to load the old ferry with 8 fuel, 6 medicine and 5 tools, then be standing on the pier when she sails. If she sails with everything aboard, everyone on the pier escapes, and the richest passenger wins.",
     art: (
       <svg viewBox="-110 -50 220 130" width="220" height="130" aria-hidden="true">
         <rect x="-110" y="40" width="220" height="40" fill="url(#g-sea)" />
@@ -14,12 +15,12 @@ const SLIDES = [
   },
   {
     title: "Walk anywhere",
-    body: "Use WASD or the arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Scroll, pinch or use the − button to zoom out and see more of the island. Saddle a horse at the Royal Stables to ride much faster.",
+    body: "WASD or arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Scroll, pinch or use − and + to zoom out. Saddle a horse at the Royal Stables to ride faster.",
     art: <div className="howto-keys"><kbd>W</kbd><div><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div></div>,
   },
   {
-    title: "Carry crates to the ferry",
-    body: "Walk into glowing crates to pick them up. You carry 3. Walk onto the gangway by the ferry to load them. A full game needs 8 fuel, 6 medicine and 5 tools (a quick game 4, 3 and 2). Spares you load earn a pearl each.",
+    title: "Grab crates, load the ferry",
+    body: "Walk into a glowing crate to pick it up (you carry 3). Walk onto the glowing gangway beside the ferry to load them. About 12 crates wash up every tide, in three waves. The tide card counts down to the next wave.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -29,34 +30,33 @@ const SLIDES = [
     ),
   },
   {
-    title: "Ten crates every tide",
-    body: "About ten crates wash up each tide in three waves: when the tide turns, a third of the way in, and two thirds of the way in. The tide card counts down to the next wave and the news says where they landed. Each tide also brings two diamonds and fresh pearls on the beaches, and some crates hide a pearl inside.",
-    art: <div className="howto-cards"><CardArt kind="tools" size={44} /><CardArt kind="diamond" size={44} /><span className="howto-pearls"><PearlIcon size={22} /><PearlIcon size={18} /></span></div>,
-  },
-  {
-    title: "The tide takes the island",
-    body: "Every few minutes the water rises and drowns the lowest places, with their crates. Dotted lines on the ground show where the next tides will reach. Grab what's low first.",
+    title: "The tide is rising",
+    body: "Five tides of three minutes. Each new tide floods the lowest places for good, with any crates on them. The map says when each place floods. When the last tide runs out, the ferry leaves.",
     art: <div className="howto-tide"><span /><span /><span /></div>,
   },
   {
-    title: "Treasure and secrets",
-    body: "Diamonds you load are yours if the ferry makes it. Dive at the coves for pearls and barter them at the market. Light the lighthouse to reveal every crate. The palace compass opens a sealed cave with three diamonds.",
+    title: "Your secret order",
+    body: "Every tide a passenger gives you a private order, like 2 medicine and 1 tools. Load those crates yourself to earn 6 pearls, then you get a new order at the next tide. If someone is holding what you need, walk up and trade with them.",
+    art: <div className="howto-cards"><CardArt kind="medicine" size={44} /><CardArt kind="tools" size={44} /><span className="howto-pearls"><PearlIcon size={26} /><PearlIcon size={22} /></span></div>,
+  },
+  {
+    title: "Get rich",
+    body: "Your fortune is your pearls plus 3 for every diamond you load. Pick pearls up on beaches, dive at the coves, fill orders. Two diamonds turn up each tide, and three more sit in the sealed cave: carry the palace compass to its door.",
     art: (
       <div className="howto-cards">
         <CardArt kind="diamond" size={54} />
         <CardArt kind="compass" size={54} />
-        <span className="howto-pearls"><PearlIcon size={26} /><PearlIcon size={22} /><PearlIcon size={18} /></span>
       </div>
     ),
   },
   {
     title: "The cutlass",
-    body: "About one crate a tide holds a cutlass. Walk right up to someone and strike: they're knocked out for 15 seconds and drop everything they carry, ready for you to grab. Then they're on guard for 10 seconds. The cutlass breaks after one strike. Bots use them too.",
+    body: "About one crate a tide holds a cutlass. Walk right up to someone and tap Strike: they're knocked out for 15 seconds and drop everything they carry. It breaks after one hit.",
     art: <div className="howto-cards"><CardArt kind="cutlass" size={60} /></div>,
   },
   {
     title: "All aboard",
-    body: "Stand on the pier and tap Ready. When most are ready, the ferry sails in 15 seconds. After the last tide it sails anyway. With 5 or more players, a secret Wrecker may sink crates: vote them into the brig.",
+    body: "Stand on the pier and tap Ready. When more than half are ready, the ferry sails in 15 seconds. Anyone not on the pier is left behind with nothing. Hold the walkie-talkie (or V) to talk.",
     art: (
       <div className="howto-cards">
         <svg viewBox="0 0 32 44" width="40" height="54" aria-hidden="true">
@@ -69,6 +69,91 @@ const SLIDES = [
     ),
   },
 ];
+
+/** The complete rules, short enough to read in two minutes. */
+export function Rules() {
+  return (
+    <div className="rules">
+      <section>
+        <h4>1. The goal</h4>
+        <p>Saltmere is sinking. Everyone works together to load the ferry with the supplies she needs, then stands on the pier when she sails. If she sails with every supply aboard, everyone on the pier escapes and the player with the biggest fortune wins. If anything is missing, she never makes it and nobody wins (unless there's a Wrecker, who wins instead).</p>
+      </section>
+      <section>
+        <h4>2. Time</h4>
+        <ul>
+          <li>A full game is 5 tides of 3 minutes. A quick game is 3 tides of 2½ minutes.</li>
+          <li>Each new tide raises the sea and floods the lowest places for good, along with any crates on them. The map lists when each place floods, and dotted lines on the ground show where the water will reach.</li>
+          <li>The ferry sails when the last tide runs out, or earlier if more than half the players tap <b>Ready</b> on the pier (a 15-second countdown starts).</li>
+        </ul>
+      </section>
+      <section>
+        <h4>3. Moving</h4>
+        <ul>
+          <li>Laptop: WASD or arrow keys, or click where to go. Scroll to zoom.</li>
+          <li>Phone: drag anywhere for a joystick, or tap where to go. Pinch to zoom. The − and + buttons by the map zoom too.</li>
+          <li>Walk up to the Royal Stables and tap <b>Saddle a horse</b> to ride much faster.</li>
+          <li>Shallow water slows you down; deep water stops you.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>4. Crates and the ferry</h4>
+        <ul>
+          <li>Walk into a glowing crate to pick it up. You carry 3 at a time (the Engineer carries 4). Tap something in your hands to drop it.</li>
+          <li>Walk onto the glowing gangway beside the ferry to load everything you carry.</li>
+          <li>The ferry needs <b>8 fuel, 6 medicine and 5 tools</b> (quick game: 4, 3 and 2). The gauges at the top of the screen show what's aboard. The Antique Compass counts as 1 fuel once it's loaded.</li>
+          <li>The hold has 30 spaces (quick game: 16), and a diamond takes 2 of them. The hold always keeps room for supplies the ferry still needs.</li>
+          <li>About 12 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>5. Your secret order</h4>
+        <ul>
+          <li>A passenger gives you a private order such as "2 medicine + 1 tools". It shows above your hands, and only you can see it.</li>
+          <li>Crates <b>you</b> load count toward it. Fill it to earn <b>6 pearls</b>. An unfinished order carries over; once it's filled you get a new one at the next tide.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>6. Trading</h4>
+        <ul>
+          <li>Walk next to another player and tap <b>Trade</b> (or tap them). Offer crates or pearls you have in return for crates or pearls they have. They can accept or decline.</li>
+          <li>Trade when someone holds what your order needs and you hold what theirs might need. Bots trade too, and will offer you swaps.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>7. Pearls, diamonds and your fortune</h4>
+        <ul>
+          <li>Your fortune is your pearls plus <b>3 for every diamond</b> you loaded (or carried onto the pier). It only counts if the ferry makes it and you're aboard.</li>
+          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves, some crates, filled orders (+6), and spare supplies you load once the ferry has enough of that kind (+1 each).</li>
+          <li>The Pearl Market sells a supply crate for 3 pearls (3 crates a tide). The merchant sometimes says no; just ask again.</li>
+          <li>Two diamonds turn up each tide. Three more lie in the sealed Sapphire Caves: carry the Antique Compass from the palace to the cave door to open it.</li>
+          <li>Light the lighthouse lamp (once a tide) to show every crate on the map for 45 seconds and reveal a hidden stepping-stone path.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>8. The cutlass</h4>
+        <p>About one crate a tide holds a cutlass. Walk right up to someone and tap <b>Strike</b>: they're knocked out for 15 seconds and drop everything they carry. The cutlass breaks after one hit, and a player who was just knocked out can't be hit again for 10 seconds after they get up.</p>
+      </section>
+      <section>
+        <h4>9. Sailing</h4>
+        <p>Be on the wooden pier when the ferry leaves. Anyone off the pier is left behind and their fortune is lost. The ferry won't wait.</p>
+      </section>
+      <section>
+        <h4>10. Characters</h4>
+        <ul>
+          {ROLES.map((r) => <li key={r}><b>{ROLE_INFO[r].name}:</b> {ROLE_INFO[r].power}</li>)}
+        </ul>
+      </section>
+      <section>
+        <h4>11. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
+        <ul>
+          <li>One player (two with 7 or more) is secretly a Wrecker. Wreckers win if the ferry sails without everything it needs.</li>
+          <li>Standing at the gangway, a Wrecker can secretly sink a supply from the hold every 45 seconds.</li>
+          <li>Each player can accuse someone once per game. If a majority votes yes, the accused is locked in the ferry's brig and their cargo spills on the pier.</li>
+        </ul>
+      </section>
+    </div>
+  );
+}
 
 export function HowTo({ auto = false }: { auto?: boolean }) {
   const [i, setI] = useState(0);

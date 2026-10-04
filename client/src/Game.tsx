@@ -1,13 +1,13 @@
 // The in-game screen: the living island with a brass-and-velvet HUD over it.
 import { useEffect, useRef, useState } from "react";
 import {
-  type GameView, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES, TRADE_R,
+  type GameView, type Order, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES, TRADE_R,
   carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
 } from "../../shared/game";
 import { ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
 import { ChatPanel, SignalBar } from "./Comms";
-import { HowTo } from "./HowTo";
+import { Rules } from "./HowTo";
 import { act, leaveRoom, live, setChatOpen, toast, useStore } from "./net";
 import { Allegiance, PeopleSheet, PlayerSheet } from "./People";
 import { setSound, soundOn, startSea } from "./sound";
@@ -217,6 +217,7 @@ export function Game({ v }: { v: GameView }) {
 
       {/* bottom centre: what you carry */}
       <section className="hud-carry">
+        {v.phase === "play" && me.order && !me.brig && <OrderChip order={me.order} />}
         <p className="hint">{hint}</p>
         <div className="carry-row">
           {Array.from({ length: carryLimit(me) }, (_, i) => {
@@ -253,9 +254,9 @@ export function Game({ v }: { v: GameView }) {
       {panel === "people" && <PeopleSheet v={v} onClose={() => setPanel(null)} onOpen={(pid) => { setPanel(null); setSheetFor(pid); }} />}
       {panel === "barter" && <BarterSheet v={v} onClose={() => setPanel(null)} />}
       {panel === "help" && (
-        <Sheet title="How to play" onClose={() => setPanel(null)}>
-          <HowTo />
+        <Sheet title="Rules" onClose={() => setPanel(null)} wide>
           <Allegiance wrecker={!!me.wrecker} count={v.wreckerCount} />
+          <Rules />
         </Sheet>
       )}
       {panel === "map" && (
@@ -274,6 +275,22 @@ export function Game({ v }: { v: GameView }) {
       {sheetFor && <PlayerSheet v={v} pid={sheetFor} onClose={() => setSheetFor(null)} onTrade={(pid) => setTradeWith(pid)} />}
       {tradeWith && <TradeComposer v={v} to={tradeWith} onClose={() => setTradeWith(null)} />}
     </main>
+  );
+}
+
+/** Your private passenger order for this tide. */
+function OrderChip({ order }: { order: Order }) {
+  return (
+    <div className={`order-chip ${order.done ? "done" : ""}`} title="Your secret order: load these crates yourself for pearls">
+      <span className="eyebrow">{order.done ? "Order filled" : "Your order"}</span>
+      {SUPPLIES.filter((k) => order.want[k]).map((k) => (
+        <span key={k} className={`order-item ${(order.got[k] ?? 0) >= (order.want[k] ?? 0) ? "ok" : ""}`}>
+          <CardArt kind={k} size={18} />
+          <b>{order.got[k] ?? 0}/{order.want[k]}</b>
+        </span>
+      ))}
+      <span className="order-reward"><PearlIcon size={14} /> {order.done ? "earned" : `+${order.reward}`}</span>
+    </div>
   );
 }
 

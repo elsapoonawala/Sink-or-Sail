@@ -2,14 +2,15 @@ import { useState } from "react";
 import { type GameView, MAX_PLAYERS, ROLES, ROLE_INFO } from "../../shared/game";
 import { Portrait } from "./art";
 import { CommsPanel } from "./Comms";
-import { HowTo } from "./HowTo";
+import { HowTo, Rules } from "./HowTo";
 import { act, leaveRoom, toast } from "./net";
 import { PlayerSheet } from "./People";
-import { copyText, Icon } from "./ui";
+import { copyText, Icon, Sheet } from "./ui";
 
 export function Lobby({ v }: { v: GameView }) {
   const host = v.hostId === v.you;
   const [open, setOpen] = useState<string | null>(null);
+  const [rules, setRules] = useState(false);
   const link = `${location.origin}/r/${v.code}`;
   const n = v.players.length;
   const wreckerText = v.settings.wrecker === "off" ? "Off" : v.settings.wrecker === "on" ? "On" : "Auto";
@@ -128,9 +129,15 @@ export function Lobby({ v }: { v: GameView }) {
 
       <aside className="lobby-side">
         <HowTo auto />
+        <button className="btn ghost" onClick={() => setRules(true)}>Read the full rules</button>
         <CommsPanel v={v} />
       </aside>
 
+      {rules && (
+        <Sheet title="Rules" onClose={() => setRules(false)} wide>
+          <Rules />
+        </Sheet>
+      )}
       {open && <PlayerSheet v={v} pid={open} onClose={() => setOpen(null)} />}
     </main>
   );

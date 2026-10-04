@@ -2,6 +2,8 @@ import { useState } from "react";
 import { ROLES, ROLE_INFO } from "../../shared/game";
 import { Portrait } from "./art";
 import { HomeScene } from "./HomeScene";
+import { Rules } from "./HowTo";
+import { Sheet } from "./ui";
 import { createRoom, joinRoom, savedName, toast, urlCode, useStore } from "./net";
 import { sfx, startSea } from "./sound";
 
@@ -10,6 +12,7 @@ export function Home() {
   const [name, setName] = useState(savedName());
   const [code, setCode] = useState(urlCode());
   const [busy, setBusy] = useState(false);
+  const [rules, setRules] = useState(false);
   const invited = !!urlCode();
 
   const go = async (kind: "create" | "join") => {
@@ -65,6 +68,7 @@ export function Home() {
             )}
             {!connected && <p className="muted small">Connecting to the harbour…</p>}
           </form>
+          <button className="btn ghost small" type="button" onClick={() => setRules(true)}>How to play</button>
           <ul className="home-features small">
             <li>Five rising tides</li>
             <li>Ride horses</li>
@@ -86,6 +90,11 @@ export function Home() {
           </ul>
         </section>
       </div>
+      {rules && (
+        <Sheet title="How to play" onClose={() => setRules(false)} wide>
+          <Rules />
+        </Sheet>
+      )}
     </main>
   );
 }

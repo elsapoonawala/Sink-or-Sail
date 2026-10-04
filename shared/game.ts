@@ -88,6 +88,17 @@ export interface HoldItem extends Item {
   owner: string;
 }
 
+/** A passenger's private request: load these yourself this tide for a pearl reward. */
+export interface Order {
+  want: Partial<Record<Supply, number>>;
+  got: Partial<Record<Supply, number>>;
+  reward: number;
+  done: boolean;
+  tide: number;
+}
+
+export const ORDER_REWARD = 6;
+
 export interface Player {
   id: string;
   name: string;
@@ -118,6 +129,7 @@ export interface Player {
   /** Knocked out by a cutlass until then, and safe from another strike until guardUntil. */
   downUntil: number;
   guardUntil: number;
+  order: Order | null;
 }
 
 export interface Offer {
@@ -363,7 +375,7 @@ function blankPlayer(id: string, name: string, seat: number, bot: boolean): Play
   return {
     id, name, seat, bot, choice: null, role: null, wrecker: false, connected: true,
     x: 0, y: 0, dir: Math.PI / 2, moving: false, mounted: false, carry: [], pearls: 0,
-    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
+    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0, order: null,
   };
 }
 
@@ -429,19 +441,35 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
     Object.assign(p, {
       wrecker: wreckers.has(p.id), x: spot.x, y: spot.y, dir: -Math.PI / 2, moving: false,
       mounted: ROLE_INFO[p.role!].mounted, carry: [], pearls: 2, ready: false, brig: false, busyUntil: 0,
-      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
+      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0, order: null,
     } satisfies Partial<Player>);
   });
 
   // Treasures that wait all game: the compass in the palace and a hoard in the sealed cave.
   for (let i = 0; i < 3; i++) s.crates.push({ id: nid(s, "c"), kind: "diamond", x: CAVE.x - 36 + i * 36, y: CAVE.y - 10 + (i % 2) * 14, zone: "cave" });
   s.piles.push({ id: nid(s, "g"), x: CAVE.x, y: CAVE.y + 22, n: 6 });
+  dealOrders(s, rng);
   // The island starts well stocked: the first two waves are already waiting.
   spawnTide(s, rng, now, 0);
   spawnTide(s, rng, now, 1);
   log(s, "The tide is turning. Load the ferry and get aboard before the last tide.", "flood");
   if (wreckers.size) log(s, wreckers.size > 1 ? "Two Wreckers are hiding among you." : "A Wrecker is hiding among you.", "alert");
   return null;
+}
+
+/** At each tide, everyone whose order is filled (or who has none) gets a new private one;
+ *  an unfinished order carries over. Neighbours get different main kinds, so what one person
+ *  needs is usually in someone else's hands. */
+function dealOrders(s: GameState, rng: Rng) {
+  const offset = Math.floor(rng() * 3);
+  s.players.forEach((p, i) => {
+    if (p.order && !p.order.done) return;
+    const main = SUPPLIES[(i + offset) % 3];
+    const others = SUPPLIES.filter((k) => k !== main);
+    const side = others[Math.floor(rng() * 2)];
+    p.order = { want: { [main]: 2, [side]: 1 }, got: {}, reward: ORDER_REWARD, done: false, tide: s.tide };
+  });
+  s.version++;
 }
 
 /** What turns up in each place, by tide: about eight supplies, two diamonds and the odd
@@ -536,6 +564,7 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
       log(s, `Tide ${s.tide} of ${s.totalTides} is rising${drowned.length ? `: ${drowned.map((z) => ZONES[z].name).join(" and ")} ${drowned.length > 1 ? "are" : "is"} going under` : ""}.`, "flood");
       if (s.tide === s.totalTides) log(s, "Last tide. The ferry leaves when it runs out. Be on the pier.", "alert");
       spawnTide(s, rng, now, 0);
+      dealOrders(s, rng);
     }
     const wave = Math.min(WAVES - 1, Math.floor(((now - s.tideStartedAt) * WAVES) / s.tideMs));
     while (s.spawnedPart < wave) spawnTide(s, rng, now, s.spawnedPart + 1);
@@ -641,6 +670,17 @@ function loadAll(s: GameState, p: Player) {
     if (item.kind === "diamond") p.loadedDiamonds++;
     if (isSpare) spare++;
     loaded.push(KIND_INFO[item.kind].name.toLowerCase());
+    const o = p.order;
+    const k = item.kind as Supply;
+    if (o && !o.done && (o.want[k] ?? 0) > (o.got[k] ?? 0)) {
+      o.got[k] = (o.got[k] ?? 0) + 1;
+      if (SUPPLIES.every((q) => (o.got[q] ?? 0) >= (o.want[q] ?? 0))) {
+        o.done = true;
+        p.pearls += o.reward;
+        fx(s, "barter", GANGWAY.x, GANGWAY.y, p.id);
+        log(s, `${p.name} filled a passenger's order: +${o.reward} pearls.`, "trade");
+      }
+    }
   }
   if (loaded.length) {
     p.pearls += spare;
@@ -1006,6 +1046,8 @@ export interface PlayerView {
   downUntil: number;
   guardUntil: number;
   accused: boolean;
+  /** Your own order only (everyone's after the game). */
+  order?: Order | null;
   /** Only shown to fellow Wreckers, to someone caught in a vote, and after the game. */
   wrecker?: boolean;
   lastDump?: number;
@@ -1075,6 +1117,7 @@ export function viewFor(s: GameState, pid: string): GameView {
         carry: p.carry, pearls: p.pearls, ready: p.ready, brig: p.brig, busyUntil: p.busyUntil, downUntil: p.downUntil, guardUntil: p.guardUntil, accused: p.accused,
         ...(showWrecker ? { wrecker: p.wrecker } : {}),
         ...(p.id === pid && p.wrecker ? { lastDump: p.lastDump } : {}),
+        ...(p.id === pid || over ? { order: p.order } : {}),
       };
     }),
     crates: s.crates,

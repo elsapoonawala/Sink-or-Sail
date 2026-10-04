@@ -173,6 +173,26 @@ describe("crates, pearls and the cutlass", () => {
     expect(b.downUntil).toBe(0);
   });
 
+  it("deals everyone a private order and pays pearls when they load it themselves", () => {
+    const s = game(2);
+    const [a, b] = s.players;
+    expect(a.order).not.toBeNull();
+    expect(viewFor(s, b.id).players.find((p) => p.id === a.id)!.order).toBeUndefined();
+    expect(viewFor(s, a.id).players.find((p) => p.id === a.id)!.order).toEqual(a.order);
+    a.carry = (Object.entries(a.order!.want) as [string, number][]).flatMap(([k, n]) => Array.from({ length: n }, (_, i) => ({ id: `${k}${i}`, kind: k as "fuel" })));
+    const before = a.pearls;
+    a.x = GANGWAY.x;
+    a.y = GANGWAY.y;
+    tick(s, 1_000_100, seeded());
+    expect(a.order!.done).toBe(true);
+    expect(a.pearls).toBe(before + a.order!.reward);
+    const bOrder = b.order;
+    tick(s, s.tideStartedAt + s.tideMs + 1, seeded());
+    expect(a.order!.done).toBe(false);
+    expect(a.order!.tide).toBe(2);
+    expect(b.order).toBe(bOrder); // unfinished orders carry over
+  });
+
   it("never loads the cutlass into the hold", () => {
     const s = game(1);
     const me = player(s, "p0")!;
