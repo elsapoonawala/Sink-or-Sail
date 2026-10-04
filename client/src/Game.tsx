@@ -1,8 +1,8 @@
 // The in-game screen: the living island with a brass-and-velvet HUD over it.
 import { useEffect, useRef, useState } from "react";
 import {
-  type GameView, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, SUPPLIES, TRADE_R,
-  carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall,
+  type GameView, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES, TRADE_R,
+  carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
 } from "../../shared/game";
 import { ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
@@ -63,6 +63,7 @@ export function Game({ v }: { v: GameView }) {
 
   const tideLeft = v.tideStartedAt + v.tideMs - now;
   const lastTide = v.tide >= v.totalTides;
+  const waveAt = nextWaveAt(v, now);
   const nextFloods = ZONE_IDS.filter((z) => floodsAtTide(z, v.totalTides) === v.tide + 1).map((z) => ZONES[z].name);
   const sailing = v.phase === "sailing";
 
@@ -77,7 +78,18 @@ export function Game({ v }: { v: GameView }) {
     .sort((a, b) => a.d - b.d)[0]?.p;
   const actions: { key: string; label: string; sub?: string; onClick: () => void; tone?: "primary" | "danger" | "ghost" }[] = [];
   const busy = now < me.busyUntil;
+  const down = now < me.downUntil;
   if (v.phase === "play" && !me.brig && !busy) {
+    if (me.carry.some((c) => c.kind === "cutlass")) {
+      const victim = others
+        .map((p) => {
+          const l = live.pos.get(p.id) ?? p;
+          return { p, d: Math.hypot(l.x - pos.x, l.y - pos.y) };
+        })
+        .filter((x) => x.d < STRIKE_R && now >= x.p.downUntil && now >= x.p.guardUntil)
+        .sort((a, b) => a.d - b.d)[0]?.p;
+      if (victim) actions.push({ key: "strike", label: `Strike ${victim.name}`, sub: victim.carry.length ? `They drop ${victim.carry.length} crate${victim.carry.length > 1 ? "s" : ""}` : "Knocks them out for 15s", onClick: () => act({ type: "strike", target: victim.id }), tone: "danger" });
+    }
     const dive = nearDive(pos);
     if (dive >= 0) {
       const wait = v.diveReady[dive] - now;
@@ -98,13 +110,18 @@ export function Game({ v }: { v: GameView }) {
   const full = me.carry.length >= carryLimit(me);
   const holdFull = v.slots >= v.capacity;
   const short = SUPPLIES.filter((k) => v.supplies[k] < v.needs[k]);
+  const stillNeeded = short.reduce((t, k) => t + v.needs[k] - v.supplies[k], 0);
+  const blocked = me.carry.length > 0 && nearGangway(pos) && me.carry.every((c) => c.kind === "cutlass" || !(SUPPLIES.includes(c.kind as Supply) && v.supplies[c.kind as Supply] < v.needs[c.kind as Supply]) && v.capacity - v.slots - KIND_INFO[c.kind].slots < stillNeeded);
   let hint = "";
   if (me.brig) hint = "You're locked in the ferry's brig. You'll sail, but you can't help or hinder.";
+  else if (down) hint = `Knocked out! You're back on your feet in ${Math.ceil((me.downUntil - now) / 1000)}s.`;
   else if (busy) hint = "Diving…";
   else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
   else if (v.sailAt) hint = `The ferry sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";
   else if (me.carry.length && nearGangway(pos) && holdFull) hint = "The hold is full. Trade or drop what you carry.";
+  else if (blocked && me.carry.every((c) => c.kind === "cutlass")) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
+  else if (blocked) hint = `The hold is saving its last space for the ${stillNeeded} supplies still needed. Bring those first.`;
   else if (full) hint = "Hands full. Carry it to the ferry's gangway (follow the gold arrow).";
   else if (me.carry.length) hint = "Walk onto the glowing gangway by the ferry to load what you carry.";
   else if (short.length) hint = `Find glowing crates. The ferry still needs ${short.map((k) => `${v.needs[k] - v.supplies[k]} ${k}`).join(", ")}.`;
@@ -133,6 +150,7 @@ export function Game({ v }: { v: GameView }) {
         <p className="tide-next small">
           {sailing ? "The Saltmere Queen is leaving." : lastTide ? "When this runs out, the ferry leaves." : nextFloods.length ? `Next tide floods ${nextFloods.join(" & ")}` : "The water keeps rising."}
         </p>
+        {!sailing && waveAt && <p className="tide-next small wave">Next crates wash up in {mmss(waveAt - now)}</p>}
         {lampOn && <p className="tide-next small lamp">Lighthouse lit: every crate shows on the map.</p>}
       </section>
 
@@ -156,6 +174,8 @@ export function Game({ v }: { v: GameView }) {
           <MiniMap v={v} size={150} />
         </button>
         <div className="hud-icons">
+          <button className="icon-btn" onClick={() => api.current?.zoomBy(1 / 1.4)} aria-label="Zoom out" title="Zoom out (or scroll / pinch)"><b className="zoom-glyph">−</b></button>
+          <button className="icon-btn" onClick={() => api.current?.zoomBy(1.4)} aria-label="Zoom in" title="Zoom in"><b className="zoom-glyph">+</b></button>
           <button className="icon-btn" onClick={() => setPanel("help")} aria-label="How to play"><Icon name="help" /></button>
           <button className="icon-btn" onClick={() => setPanel("menu")} aria-label="Menu"><Icon name="anchor" /></button>
         </div>
@@ -178,7 +198,7 @@ export function Game({ v }: { v: GameView }) {
             <h3>{ROLE_INFO[me.role].name}</h3>
             <p className="small">{ROLE_INFO[me.role].power}</p>
             {me.wrecker && <p className="small wreck-note">…and secretly the <b>Wrecker</b>. Sink crates at the gangway without being caught.</p>}
-            <p className="small muted">Walk with WASD, arrows, a click, or drag on your phone. Grab glowing crates and carry them to the ferry.</p>
+            <p className="small muted">Walk with WASD, arrows, a click, or drag on your phone. Scroll or pinch to zoom out. Grab glowing crates and carry them to the ferry.</p>
           </div>
         </div>
       )}
@@ -241,6 +261,7 @@ export function Game({ v }: { v: GameView }) {
       {panel === "map" && (
         <Sheet title="Saltmere" onClose={() => setPanel(null)} wide>
           <div className="big-map"><MiniMap v={v} size={Math.min(640, window.innerWidth - 60)} /></div>
+          <p className="small muted">Crates and pearls you've seen show as dots: gold for fuel and tools, pink for medicine, blue diamonds, red cutlasses. Zoom out on the island (scroll, pinch or −) to spot more at once.</p>
           <ul className="legend small">
             {ZONE_IDS.map((z) => {
               const n = floodsAtTide(z, v.totalTides);
@@ -370,7 +391,7 @@ function MenuSheet({ v, onClose }: { v: GameView; onClose: () => void }) {
         <button className="btn ghost" onClick={() => { setSound(!sound); setS(!sound); }}><Icon name={sound ? "sound" : "soundOff"} size={16} /> Sound {sound ? "on" : "off"}</button>
         {v.hostId === v.you && <button className="btn ghost" onClick={() => { act({ type: "lobby" }); onClose(); }} disabled={v.phase === "play"}>Back to lobby</button>}
         <button className="btn ghost danger" onClick={leaveRoom}>Leave the game</button>
-        <p className="small muted">Keys: WASD or arrows to walk, hold V to talk. On a phone, drag anywhere to steer or tap where to go.</p>
+        <p className="small muted">Keys: WASD or arrows to walk, scroll to zoom, hold V to talk. On a phone, drag anywhere to steer, tap where to go, and pinch to zoom.</p>
       </div>
     </Sheet>
   );

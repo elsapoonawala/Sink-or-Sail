@@ -8,21 +8,21 @@ import {
 } from "./world";
 
 export type Supply = "fuel" | "medicine" | "tools";
-export type Kind = Supply | "diamond" | "compass";
+export type Kind = Supply | "diamond" | "compass" | "cutlass";
 export type Role = "diver" | "engineer" | "physician" | "cartographer" | "jeweler" | "duchess";
 export type Phase = "lobby" | "play" | "sailing" | "over";
 
 export const SUPPLIES: Supply[] = ["fuel", "medicine", "tools"];
-export const KINDS: Kind[] = ["fuel", "medicine", "tools", "diamond", "compass"];
+export const KINDS: Kind[] = ["fuel", "medicine", "tools", "diamond", "compass", "cutlass"];
 export const ROLES: Role[] = ["diver", "engineer", "physician", "cartographer", "jeweler", "duchess"];
 
 export const MIN_PLAYERS = 1;
 export const MAX_PLAYERS = 8;
 /** What the crossing needs, and how big the hold is, for a full game and a quick one. */
-export const NEEDS: Record<Supply, number> = { fuel: 6, medicine: 5, tools: 4 };
+export const NEEDS: Record<Supply, number> = { fuel: 8, medicine: 6, tools: 5 };
 export const QUICK_NEEDS: Record<Supply, number> = { fuel: 4, medicine: 3, tools: 2 };
-export const HOLD_SLOTS = 20;
-export const QUICK_HOLD_SLOTS = 12;
+export const HOLD_SLOTS = 30;
+export const QUICK_HOLD_SLOTS = 16;
 
 export const WALK_SPEED = 150;
 export const RIDE_SPEED = 265;
@@ -34,6 +34,12 @@ export const DUMP_COOLDOWN = 45_000;
 export const SAIL_COUNTDOWN = 15_000;
 export const SAIL_MS = 7_000;
 export const DIVE_MS = 2_500;
+/** Crates wash up in this many waves each tide, evenly spaced. */
+export const WAVES = 3;
+export const STRIKE_R = 70;
+export const KNOCKOUT_MS = 15_000;
+/** After getting up, a knocked-out player can't be struck again for a while. */
+export const GUARD_MS = 10_000;
 
 export const KIND_INFO: Record<Kind, { name: string; slots: number; worth: number }> = {
   fuel: { name: "Fuel", slots: 1, worth: 0 },
@@ -41,6 +47,7 @@ export const KIND_INFO: Record<Kind, { name: string; slots: number; worth: numbe
   tools: { name: "Tools", slots: 1, worth: 0 },
   diamond: { name: "Diamond", slots: 2, worth: 3 },
   compass: { name: "Antique Compass", slots: 1, worth: 0 },
+  cutlass: { name: "Cutlass", slots: 1, worth: 0 },
 };
 
 export const ROLE_INFO: Record<Role, { name: string; power: string; short: string; wear: string; mounted: boolean }> = {
@@ -66,6 +73,8 @@ export interface Crate extends Item {
   x: number;
   y: number;
   zone: ZoneId | "cave" | "dropped";
+  /** Pearls tucked inside, found when it's picked up. */
+  bonus?: number;
 }
 
 export interface PearlPile {
@@ -106,6 +115,9 @@ export interface Player {
   lastBarter: number;
   /** Diamonds this player loaded aboard. */
   loadedDiamonds: number;
+  /** Knocked out by a cutlass until then, and safe from another strike until guardUntil. */
+  downUntil: number;
+  guardUntil: number;
 }
 
 export interface Offer {
@@ -138,7 +150,7 @@ export interface LogEntry {
 /** Short-lived world events the client turns into sounds and sparkles. */
 export interface Fx {
   n: number;
-  kind: "pickup" | "load" | "splash" | "dive" | "lamp" | "gate" | "sink" | "swept" | "barter" | "horse" | "trade" | "tide" | "brig";
+  kind: "pickup" | "load" | "splash" | "dive" | "lamp" | "gate" | "sink" | "swept" | "barter" | "horse" | "trade" | "tide" | "brig" | "strike" | "wave";
   x: number;
   y: number;
   by?: string;
@@ -181,7 +193,8 @@ export interface GameState {
   caveOpen: boolean;
   marketStock: number;
   diveReady: number[];
-  spawnedPart: 0 | 1;
+  /** How many of this tide's crate waves have washed up. */
+  spawnedPart: number;
   log: LogEntry[];
   fx: Fx[];
   result: Result | null;
@@ -350,7 +363,7 @@ function blankPlayer(id: string, name: string, seat: number, bot: boolean): Play
   return {
     id, name, seat, bot, choice: null, role: null, wrecker: false, connected: true,
     x: 0, y: 0, dir: Math.PI / 2, moving: false, mounted: false, carry: [], pearls: 0,
-    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0,
+    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
   };
 }
 
@@ -416,55 +429,78 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
     Object.assign(p, {
       wrecker: wreckers.has(p.id), x: spot.x, y: spot.y, dir: -Math.PI / 2, moving: false,
       mounted: ROLE_INFO[p.role!].mounted, carry: [], pearls: 2, ready: false, brig: false, busyUntil: 0,
-      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0,
+      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
     } satisfies Partial<Player>);
   });
 
   // Treasures that wait all game: the compass in the palace and a hoard in the sealed cave.
-  for (let i = 0; i < 2; i++) s.crates.push({ id: nid(s, "c"), kind: "diamond", x: CAVE.x - 20 + i * 40, y: CAVE.y - 10 + i * 12, zone: "cave" });
+  for (let i = 0; i < 3; i++) s.crates.push({ id: nid(s, "c"), kind: "diamond", x: CAVE.x - 36 + i * 36, y: CAVE.y - 10 + (i % 2) * 14, zone: "cave" });
   s.piles.push({ id: nid(s, "g"), x: CAVE.x, y: CAVE.y + 22, n: 6 });
+  // The island starts well stocked: the first two waves are already waiting.
   spawnTide(s, rng, now, 0);
+  spawnTide(s, rng, now, 1);
   log(s, "The tide is turning. Load the ferry and get aboard before the last tide.", "flood");
   if (wreckers.size) log(s, wreckers.size > 1 ? "Two Wreckers are hiding among you." : "A Wrecker is hiding among you.", "alert");
   return null;
 }
 
-/** What turns up in each place, by tide: about five supplies a tide, so the hold
- *  can't be filled early and low places are worth raiding before they drown. */
+/** What turns up in each place, by tide: about eight supplies, two diamonds and the odd
+ *  cutlass a tide. Low places get theirs early, so they're worth raiding before they drown. */
 const SPAWNS: Partial<Record<ZoneId, Kind[]>>[] = [
-  { harbour: ["fuel", "tools"], shipwreck: ["diamond", "fuel"], gardens: ["medicine"], palace: ["compass"], lighthouse: ["fuel"] },
-  { coves: ["fuel", "medicine"], market: ["tools"], stables: ["tools"], gardens: ["medicine"], hotel: ["diamond"] },
-  { market: ["fuel", "medicine"], hotel: ["tools"], palace: ["diamond"], lighthouse: ["fuel"], gardens: ["medicine"] },
-  { gardens: ["medicine"], hotel: ["fuel", "diamond"], stables: ["medicine"], palace: ["tools"] },
-  { palace: ["fuel", "medicine"], hotel: ["tools"], lighthouse: ["fuel"], stables: ["fuel"] },
+  { harbour: ["fuel", "tools"], shipwreck: ["diamond", "fuel", "medicine"], coves: ["medicine", "tools", "diamond"], gardens: ["fuel"], palace: ["compass"], market: ["tools"], lighthouse: ["cutlass"] },
+  { coves: ["fuel", "diamond", "medicine"], harbour: ["medicine", "tools"], market: ["fuel", "cutlass"], stables: ["tools"], gardens: ["medicine"], hotel: ["diamond", "fuel"] },
+  { market: ["fuel", "medicine", "diamond"], gardens: ["tools", "medicine"], lighthouse: ["fuel", "diamond"], hotel: ["tools"], palace: ["fuel"], stables: ["cutlass", "medicine"] },
+  { gardens: ["medicine", "fuel", "diamond"], hotel: ["fuel", "tools", "medicine"], palace: ["medicine", "diamond", "cutlass"], stables: ["tools"], lighthouse: ["fuel"] },
+  { palace: ["fuel", "medicine", "tools"], hotel: ["fuel", "medicine", "diamond"], stables: ["fuel", "tools"], lighthouse: ["medicine"] },
 ];
 
-/** Half of each tide's crates turn up as it starts; the rest wash up halfway through. */
-function spawnList(t: number, part: 0 | 1): [ZoneId, Kind][] {
+/** About a third of each tide's crates turn up at the start, a third and two thirds of the way through. */
+export function spawnList(t: number, part: number): [ZoneId, Kind][] {
   const all: [ZoneId, Kind][] = [];
   for (const [z, kinds] of Object.entries(SPAWNS[t - 1] ?? {}) as [ZoneId, Kind[]][]) for (const k of kinds) all.push([z, k]);
-  return all.filter((_, i) => i % 2 === part);
+  return all.filter((_, i) => i % WAVES === part);
 }
 
-function spawnTide(s: GameState, rng: Rng, now: number, part: 0 | 1) {
+/** When the next wave of crates washes up, or null if none are left this game. */
+export function nextWaveAt(s: { tide: number; totalTides: number; tideStartedAt: number; tideMs: number; spawnedPart: number }, now: number): number | null {
+  for (let k = s.spawnedPart + 1; k < WAVES; k++) {
+    const at = s.tideStartedAt + (s.tideMs * k) / WAVES;
+    if (at > now) return at;
+  }
+  return s.tide < s.totalTides ? s.tideStartedAt + s.tideMs : null;
+}
+
+function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
   const g = { ...ground(s, now), level: seaLevel(s.tide, s.tideStartedAt - 1e9, s.totalTides, now) };
   s.spawnedPart = part;
+  const places = new Set<string>();
   for (const [z, kind] of spawnList(s.tide, part)) {
     // If its place has already drowned, the crate washes up on high ground instead.
-    const spot = randomSpot(z, g, rng) ?? randomSpot("stables", g, rng) ?? randomSpot("palace", g, rng);
-    if (spot) s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: z });
+    let at: ZoneId = z;
+    let spot = randomSpot(z, g, rng);
+    for (const alt of ["stables", "palace"] as ZoneId[]) {
+      if (spot) break;
+      at = alt;
+      spot = randomSpot(alt, g, rng);
+    }
+    if (!spot) continue;
+    const bonus = SUPPLIES.includes(kind as Supply) && rng() < 0.3 ? 1 : undefined;
+    s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: at, ...(bonus ? { bonus } : {}) });
+    places.add(ZONES[at].name);
   }
-  if (part === 1) {
-    log(s, "Fresh crates have washed up around the island.", "info");
-    return;
+  // Pearls wash up wherever the land is still dry.
+  const dry = ZONE_IDS.filter((z) => z !== "caves" && z !== "hotel" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.3) <= 0);
+  const piles = part === 0 ? 3 : 2;
+  for (let i = 0; i < piles && dry.length; i++) {
+    const spot = randomSpot(dry[Math.floor(rng() * dry.length)], g, rng);
+    if (spot) s.piles.push({ id: nid(s, "g"), x: spot.x, y: spot.y, n: 1 + Math.floor(rng() * 3) });
   }
-  // Pearls wash up on the beaches.
-  const beaches: ZoneId[] = s.tide <= 2 ? ["coves", "shipwreck", "coves"] : ["market", "gardens"];
-  for (const z of beaches) {
-    const spot = randomSpot(z, g, rng);
-    if (spot) s.piles.push({ id: nid(s, "g"), x: spot.x, y: spot.y, n: 1 + Math.floor(rng() * 2) });
+  if (part === 0) s.marketStock = 3;
+  const names = [...places];
+  if (names.length) {
+    fx(s, "wave", 0, 0);
+    log(s, `Fresh crates washed up at ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]}.`, "info");
   }
-  s.marketStock = 2;
   s.version++;
 }
 
@@ -501,7 +537,8 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
       if (s.tide === s.totalTides) log(s, "Last tide. The ferry leaves when it runs out. Be on the pier.", "alert");
       spawnTide(s, rng, now, 0);
     }
-    if (s.spawnedPart === 0 && now >= s.tideStartedAt + s.tideMs / 2) spawnTide(s, rng, now, 1);
+    const wave = Math.min(WAVES - 1, Math.floor(((now - s.tideStartedAt) * WAVES) / s.tideMs));
+    while (s.spawnedPart < wave) spawnTide(s, rng, now, s.spawnedPart + 1);
     const g = ground(s, now);
     // Crates and pearls that go under are lost; people caught in deep water scramble ashore.
     const before = s.crates.length;
@@ -520,8 +557,12 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
         p.y = to.y;
         fx(s, "swept", p.x, p.y, p.id);
       }
+      if (p.downUntil && now >= p.downUntil) {
+        p.downUntil = 0;
+        s.version++;
+      }
       collect(s, p, now);
-      if (nearGangway(p) && p.carry.length) loadAll(s, p);
+      if (nearGangway(p) && p.carry.length && !p.downUntil) loadAll(s, p);
       if (p.ready && !onDock(p.x, p.y)) {
         p.ready = false;
         s.version++;
@@ -569,29 +610,37 @@ function collect(s: GameState, p: Player, now: number) {
   s.crates.splice(i, 1);
   p.carry.push({ id: c.id, kind: c.kind });
   if (p.role === "duchess" && c.zone !== "dropped") p.pearls++;
+  if (c.bonus) p.pearls += c.bonus;
   fx(s, "pickup", c.x, c.y, p.id);
+  if (c.kind === "cutlass") log(s, `${p.name} picked up a cutlass.`, "alert");
   if (c.kind === "compass") log(s, `${p.name} found the Antique Compass.`, "info");
   if (c.kind === "diamond" && c.zone !== "dropped") log(s, `${p.name} found a diamond at ${c.zone === "cave" ? "the Sapphire Caves" : ZONES[c.zone as ZoneId].name}.`, "info");
 }
 
 function loadAll(s: GameState, p: Player) {
   const loaded: string[] = [];
+  let spare = 0;
   for (const item of [...p.carry]) {
+    if (item.kind === "cutlass") continue; // you keep your weapon
     if (slotsUsed(s.hold) + KIND_INFO[item.kind].slots > capacityOf(s)) continue;
-    if (p.bot && !worthLoading(s, item.kind)) continue;
+    if (!worthLoading(s, item.kind)) continue;
+    const isSpare = SUPPLIES.includes(item.kind as Supply) && suppliesIn(s.hold)[item.kind as Supply] >= needsFor(s)[item.kind as Supply];
     p.carry = p.carry.filter((c) => c.id !== item.id);
     s.hold.push({ ...item, owner: p.id });
     if (item.kind === "diamond") p.loadedDiamonds++;
+    if (isSpare) spare++;
     loaded.push(KIND_INFO[item.kind].name.toLowerCase());
   }
   if (loaded.length) {
+    p.pearls += spare;
     fx(s, "load", GANGWAY.x, GANGWAY.y, p.id);
-    log(s, `${p.name} loaded ${loaded.join(", ")}.`, "load");
+    log(s, `${p.name} loaded ${loaded.join(", ")}${spare ? ` (+${spare} pearl${spare > 1 ? "s" : ""} for spares)` : ""}.`, "load");
   }
 }
 
-/** Bots keep space for what the crossing still needs. */
-function worthLoading(s: GameState, kind: Kind) {
+/** The hold keeps room for what the crossing still needs. */
+export function worthLoading(s: GameState, kind: Kind) {
+  if (kind === "cutlass") return false;
   const need = needsFor(s);
   const have = suppliesIn(s.hold);
   if (SUPPLIES.includes(kind as Supply) && have[kind as Supply] < need[kind as Supply]) return true;
@@ -740,6 +789,38 @@ export function dump(s: GameState, pid: string, now: number, rng: Rng): string |
   p.lastDump = now;
   fx(s, "splash", GANGWAY.x + 30, GANGWAY.y + 40);
   log(s, `Splash! A crate of ${KIND_INFO[victim.kind].name.toLowerCase()} went over the side of the ferry.`, "alert");
+  return null;
+}
+
+/** Strike someone next to you with a cutlass: they're knocked out and drop what they carry. */
+export function strike(s: GameState, pid: string, target: string, now: number): string | null {
+  const p = player(s, pid);
+  const t = player(s, target);
+  if (!p || !t || s.phase !== "play" || pid === target) return null;
+  if (p.brig || now < p.busyUntil) return null;
+  const blade = p.carry.find((c) => c.kind === "cutlass");
+  if (!blade) return "You need a cutlass. They turn up in crates.";
+  if (t.brig) return `${t.name} is in the brig.`;
+  if (dist(p.x, p.y, t.x, t.y) > STRIKE_R) return `Get right up to ${t.name} first.`;
+  if (now < t.downUntil) return `${t.name} is already knocked out.`;
+  if (now < t.guardUntil) return `${t.name} is on guard after the last hit. Wait ${Math.ceil((t.guardUntil - now) / 1000)}s.`;
+  p.carry = p.carry.filter((c) => c.id !== blade.id);
+  t.downUntil = now + KNOCKOUT_MS;
+  t.guardUntil = t.downUntil + GUARD_MS;
+  t.busyUntil = Math.max(t.busyUntil, t.downUntil);
+  t.moving = false;
+  t.ready = false;
+  // Everything they carried spills on the ground around them.
+  const g = ground(s, now);
+  t.carry.forEach((item, i) => {
+    const a = (i / Math.max(1, t.carry.length)) * Math.PI * 2 + 0.6;
+    const at = nearestFooting(t.x + Math.cos(a) * 34, t.y + Math.sin(a) * 20, g);
+    s.crates.push({ ...item, x: at.x, y: at.y, zone: "dropped" });
+  });
+  const spilled = t.carry.length;
+  t.carry = [];
+  fx(s, "strike", t.x, t.y, p.id);
+  log(s, `${p.name} knocked out ${t.name} with a cutlass${spilled ? ` and ${spilled > 1 ? `${spilled} crates` : "a crate"} spilled` : ""}!`, "alert");
   return null;
 }
 
@@ -911,6 +992,8 @@ export interface PlayerView {
   ready: boolean;
   brig: boolean;
   busyUntil: number;
+  downUntil: number;
+  guardUntil: number;
   accused: boolean;
   /** Only shown to fellow Wreckers, to someone caught in a vote, and after the game. */
   wrecker?: boolean;
@@ -947,6 +1030,7 @@ export interface GameView {
   caveOpen: boolean;
   marketStock: number;
   diveReady: number[];
+  spawnedPart: number;
   log: LogEntry[];
   fx: Fx[];
   result: Result | null;
@@ -977,7 +1061,7 @@ export function viewFor(s: GameState, pid: string): GameView {
       return {
         id: p.id, name: p.name, seat: p.seat, choice: p.choice, role: p.role, bot: p.bot, connected: p.connected,
         x: Math.round(p.x), y: Math.round(p.y), dir: p.dir, moving: p.moving, mounted: p.mounted,
-        carry: p.carry, pearls: p.pearls, ready: p.ready, brig: p.brig, busyUntil: p.busyUntil, accused: p.accused,
+        carry: p.carry, pearls: p.pearls, ready: p.ready, brig: p.brig, busyUntil: p.busyUntil, downUntil: p.downUntil, guardUntil: p.guardUntil, accused: p.accused,
         ...(showWrecker ? { wrecker: p.wrecker } : {}),
         ...(p.id === pid && p.wrecker ? { lastDump: p.lastDump } : {}),
       };
@@ -997,6 +1081,7 @@ export function viewFor(s: GameState, pid: string): GameView {
     caveOpen: s.caveOpen,
     marketStock: s.marketStock,
     diveReady: s.diveReady,
+    spawnedPart: s.spawnedPart,
     log: s.log.slice(-12),
     fx: s.fx,
     result: s.result,

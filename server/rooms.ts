@@ -4,7 +4,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import {
   type GameState, type Offer, type Role, type Supply,
   accuse, addPlayer, barter, cancelOffer, castVote, chooseRole, createGame, dive, dropItem, dump, lightLamp,
-  makeOffer, moveTo, player, removePlayer, respondOffer, setReady, startGame, tick, toggleMount, viewFor, MAX_PLAYERS,
+  makeOffer, moveTo, player, removePlayer, respondOffer, setReady, startGame, strike, tick, toggleMount, viewFor, MAX_PLAYERS,
 } from "../shared/game";
 import { BOT_NAMES, type Brain, botTick, newBrain } from "../shared/bots";
 import type { ChatMessage, ClientAction, PosMessage, SignalKey, VoiceState } from "../shared/protocol";
@@ -232,6 +232,9 @@ export class Rooms {
       case "dump":
         err = dump(s, pid, Date.now(), rng);
         break;
+      case "strike":
+        err = strike(s, pid, a.target, Date.now());
+        break;
       case "ready":
         err = setReady(s, pid, a.ready !== false);
         break;
@@ -367,7 +370,7 @@ export class Rooms {
     // Positions every frame; the full view only when something else changed.
     const pos: PosMessage = {
       t: now,
-      p: s.players.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.dir * 100), (p.moving ? 1 : 0) | (p.mounted ? 2 : 0) | (now < p.busyUntil ? 4 : 0)]),
+      p: s.players.map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.dir * 100), (p.moving ? 1 : 0) | (p.mounted ? 2 : 0) | (now < p.busyUntil ? 4 : 0) | (now < p.downUntil ? 8 : 0)]),
     };
     for (const sock of room.sockets.values()) this.io.toSocket(sock, "pos", pos);
     if (s.version !== room.sentVersion) this.afterChange(room);

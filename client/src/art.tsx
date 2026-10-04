@@ -89,6 +89,16 @@ export function CardArt({ kind, size = 56 }: { kind: Kind | "spoiled" | "pearl";
           <rect x="56" y="9" width="8" height="8" rx="2" fill="url(#g-brass)" />
         </g>
       )}
+      {kind === "cutlass" && (
+        <g>
+          <ellipse cx="60" cy="77" rx="28" ry="4" fill="#000" opacity=".12" />
+          <path d="M44 66 Q30 34 66 10 Q52 36 54 64 Z" fill="#dfe6ea" stroke="#5d6970" strokeWidth="1.4" />
+          <path d="M50 52 Q46 34 60 20" stroke="#fff" strokeWidth="2" fill="none" opacity=".8" />
+          <ellipse cx="50" cy="66" rx="15" ry="5" fill="url(#g-brass)" stroke="#8a6420" transform="rotate(-25 50 66)" />
+          <rect x="45" y="68" width="7" height="13" rx="2" fill="#4a2f22" transform="rotate(-25 48 74)" />
+          <circle cx="44" cy="81" r="3" fill="#e9c46a" />
+        </g>
+      )}
       {kind === "fuel" && (
         <g>
           <ellipse cx="60" cy="77" rx="24" ry="4" fill="#000" opacity=".12" />

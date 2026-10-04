@@ -4,7 +4,7 @@
 import {
   type GameState, type Kind, type Player, type Rng, type Supply, PIER, SUPPLIES,
   barter, carryLimit, castVote, dive, dump, ground, lightLamp, nearDive, nearGangway, nearLamp, nearStall, needsFor,
-  needsMet, respondOffer, setReady, slotsUsed, speedOf, suppliesIn, capacityOf,
+  needsMet, respondOffer, setReady, slotsUsed, speedOf, strike, suppliesIn, capacityOf, STRIKE_R,
 } from "./game";
 import { DIVE_SPOTS, GANGWAY, LAMP, MARKET_STALL, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
 
@@ -49,7 +49,11 @@ function shortfall(s: GameState): Record<Supply, number> {
   return out;
 }
 
+/** What a bot carries that's meant for the ferry (not its cutlass). */
+const cargo = (p: Player) => p.carry.filter((c) => c.kind !== "cutlass");
+
 function worth(s: GameState, kind: Kind, short: Record<Supply, number>): number {
+  if (kind === "cutlass") return 1.5;
   if (kind === "compass") return s.hold.some((c) => c.kind === "compass") ? 1 : 7;
   if (kind === "diamond") return capacityOf(s) - slotsUsed(s.hold) >= 4 ? 5 : 2;
   return short[kind] > 0 ? 10 : capacityOf(s) - slotsUsed(s.hold) > 5 ? 0.8 : 0;
@@ -60,6 +64,7 @@ export function botTick(s: GameState, p: Player, b: Brain, now: number, dt: numb
   if (s.phase !== "play" || p.brig) return false;
   let changed = answerOffers(s, p, b, now, rng) || vote(s, p, b, now, rng);
   if (now < p.busyUntil) return changed;
+  changed = swing(s, p, now, rng) || changed;
 
   // Arrived somewhere? Do the thing that brought us here.
   const g = b.goal;
@@ -113,7 +118,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
 
   // Time to go: last call, or the table wants to leave.
   if (left < 70_000 || s.sailAt !== null || humansReady) {
-    if (p.carry.length && !nearGangway(p) && !p.wrecker) return set({ kind: "gangway", ...GANGWAY });
+    if (cargo(p).length && !nearGangway(p) && !p.wrecker) return set({ kind: "gangway", ...GANGWAY });
     if (!onDock(p.x, p.y)) return toDock();
     maybeReady(s, p, now);
     return;
@@ -122,7 +127,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
   const limit = carryLimit(p);
   const short = shortfall(s);
   const missing = SUPPLIES.some((k) => short[k] > 0);
-  if (p.carry.length >= limit) return set({ kind: "gangway", ...GANGWAY });
+  if (p.carry.length >= limit && cargo(p).length) return set({ kind: "gangway", ...GANGWAY });
 
   // Best crate by value over distance, skipping ones other bots are fetching.
   let best: { id: string; x: number; y: number } | null = null;
@@ -141,11 +146,11 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
       best = c;
     }
   }
-  const carryingUseful = p.carry.some((c) => c.kind !== "diamond" || slotsUsed(s.hold) <= capacityOf(s) - 2);
-  if (p.carry.length && (!best || bestScore < 0.006 || (p.carry.length >= 2 && dist(p, GANGWAY) < 500)) && carryingUseful && !p.wrecker) {
+  const carryingUseful = cargo(p).some((c) => c.kind !== "diamond" || slotsUsed(s.hold) <= capacityOf(s) - 2);
+  if (cargo(p).length && (!best || bestScore < 0.006 || (cargo(p).length >= 2 && dist(p, GANGWAY) < 500)) && carryingUseful && !p.wrecker) {
     return set({ kind: "gangway", ...GANGWAY });
   }
-  if (p.wrecker && p.carry.length >= 2 && now - p.lastDump > 45_000 && s.hold.length) return set({ kind: "gangway", ...GANGWAY });
+  if (p.wrecker && cargo(p).length >= 2 && now - p.lastDump > 45_000 && s.hold.length) return set({ kind: "gangway", ...GANGWAY });
   if (best && bestScore > 0.004) return set({ kind: "crate", id: best.id, x: best.x, y: best.y });
 
   // Nothing worth fetching nearby: barter, dive, light the lamp or roam.
@@ -160,11 +165,20 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     const stand = { x: d.x + 55, y: d.y };
     if (footing(stand.x, stand.y, g) > 0) return set({ kind: "dive", ...stand, spot });
   }
-  if (!missing && !p.carry.length && s.tide >= 3) return toDock();
-  if (p.carry.length && !p.wrecker) return set({ kind: "gangway", ...GANGWAY });
+  if (!missing && !cargo(p).length && s.tide >= 3) return toDock();
+  if (cargo(p).length && carryingUseful && !p.wrecker) return set({ kind: "gangway", ...GANGWAY });
   const dry = ZONE_IDS.filter((z) => footing(ZONES[z].x, ZONES[z].y, g) > 0 && z !== "caves");
   const z = ZONES[dry[Math.floor(rng() * dry.length)] ?? "palace"];
   set({ kind: "wander", x: z.x + (rng() - 0.5) * z.r, y: z.y + (rng() - 0.5) * z.r });
+}
+
+/** A bot with a cutlass now and then knocks out someone close by who's carrying plenty. */
+function swing(s: GameState, p: Player, now: number, rng: Rng): boolean {
+  if (!p.carry.some((c) => c.kind === "cutlass") || rng() > 0.04) return false;
+  const victim = s.players.find((q) =>
+    q.id !== p.id && !q.brig && now >= q.downUntil && now >= q.guardUntil && dist(p, q) < STRIKE_R &&
+    !(p.wrecker && q.wrecker) && cargo(q).length >= (p.wrecker ? 1 : 2));
+  return !!victim && !strike(s, p.id, victim.id, now);
 }
 
 function walk(s: GameState, p: Player, b: Brain, now: number, dt: number) {
@@ -175,7 +189,8 @@ function walk(s: GameState, p: Player, b: Brain, now: number, dt: number) {
   }
   const g = ground(s, now);
   const d = dist(p, target);
-  const step = speedOf(p) * Math.max(0.3, footing(p.x, p.y, g)) * dt;
+  // Bots move a touch slower than people so humans get a fair shot at the crates.
+  const step = speedOf(p) * 0.85 * Math.max(0.3, footing(p.x, p.y, g)) * dt;
   p.dir = Math.atan2(target.y - p.y, target.x - p.x);
   if (d <= step) {
     p.x = target.x;
@@ -213,6 +228,7 @@ function valueFor(s: GameState, k: Kind) {
   const short = shortfall(s);
   if (k === "diamond") return 3;
   if (k === "compass") return 3;
+  if (k === "cutlass") return 2;
   return short[k] > 0 ? 4 : 1;
 }
 

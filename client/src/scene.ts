@@ -926,10 +926,35 @@ export interface Avatar {
   seat: number;
   busy: boolean;
   swim?: boolean;
+  /** Knocked out: lying on the ground with stars overhead. */
+  down?: boolean;
 }
 
 /** A dashing islander: long coat, signature hat, a cape for the grander roles. */
 export function drawPerson(ctx: CanvasRenderingContext2D, a: Avatar, t: number) {
+  if (a.down) {
+    const face = Math.cos(a.dir) < -0.1 ? -1 : 1;
+    ctx.save();
+    ctx.translate(a.x + face * 18, a.y);
+    shadow(ctx, -face * 20, 0, 24, 5);
+    ctx.rotate(face * -Math.PI / 2);
+    drawPerson(ctx, { ...a, x: 0, y: 4 * face, down: false, mounted: false, moving: false, busy: false, swim: false }, 0);
+    ctx.restore();
+    // dizzy stars
+    for (let i = 0; i < 3; i++) {
+      const ang = t / 300 + (i * Math.PI * 2) / 3;
+      const sx = a.x - face * 24 + Math.cos(ang) * 12;
+      const sy = a.y - 18 + Math.sin(ang) * 4;
+      ctx.fillStyle = "#f2d14b";
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const rr = k % 2 ? 1.6 : 4;
+        ctx.lineTo(sx + Math.cos((k * Math.PI) / 5 - Math.PI / 2) * rr, sy + Math.sin((k * Math.PI) / 5 - Math.PI / 2) * rr);
+      }
+      ctx.fill();
+    }
+    return;
+  }
   const look = a.role ? ROLE_LOOK[a.role] : { coat: "#2b4650", trim: "#d2a74e", hat: "bowler" as const, cape: undefined };
   const face = Math.cos(a.dir) < -0.1 ? -1 : 1;
   const skin = SKIN[a.seat % SKIN.length];
@@ -1149,6 +1174,7 @@ const KIND_COL: Record<Kind, [string, string]> = {
   tools: ["#6b4a2f", "#d2a74e"],
   diamond: ["#bfe8f5", "#3d8fb8"],
   compass: ["#e9c46a", "#8a6420"],
+  cutlass: ["#dfe6ea", "#8a6420"],
 };
 
 export function drawItem(ctx: CanvasRenderingContext2D, kind: Kind, x: number, y: number, size: number, t: number) {
@@ -1176,6 +1202,31 @@ export function drawItem(ctx: CanvasRenderingContext2D, kind: Kind, x: number, y
     ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(t / 200)})`;
     ctx.beginPath();
     ctx.arc(6, -10, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === "cutlass") {
+    // a curved silver blade with a brass basket hilt
+    ctx.rotate(-0.7);
+    ctx.fillStyle = a;
+    ctx.strokeStyle = "#5d6970";
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-2, 4);
+    ctx.quadraticCurveTo(-4, -6, 2, -13);
+    ctx.quadraticCurveTo(1, -5, 2, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255,255,255,${0.4 + 0.4 * Math.sin(t / 220)})`;
+    ctx.fillRect(-1.5, -8, 1, 6);
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.ellipse(0, 5, 5, 2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#4a2f22";
+    ctx.fillRect(-1.2, 6, 2.4, 5);
+    ctx.fillStyle = "#e9c46a";
+    ctx.beginPath();
+    ctx.arc(0, 11.5, 1.6, 0, Math.PI * 2);
     ctx.fill();
   } else if (kind === "compass") {
     ctx.fillStyle = a;
@@ -1235,15 +1286,40 @@ export function drawItem(ctx: CanvasRenderingContext2D, kind: Kind, x: number, y
 }
 
 /** A crate waiting on the ground: bobbing, with a glow so it reads from afar. */
-export function drawCrate(ctx: CanvasRenderingContext2D, kind: Kind, x: number, y: number, t: number, seed: number) {
+export function drawCrate(ctx: CanvasRenderingContext2D, kind: Kind, x: number, y: number, t: number, seed: number, grow = 1) {
+  if (grow !== 1) {
+    // Drawn bigger when the camera is zoomed far out, so crates still read.
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(grow, grow);
+    drawCrate(ctx, kind, 0, 0, t, seed);
+    ctx.restore();
+    return;
+  }
   const bob = Math.sin(t / 350 + seed) * 2;
-  const glow = kind === "diamond" || kind === "compass" ? "rgba(160,230,255," : kind === "medicine" ? "rgba(255,170,180," : "rgba(255,226,140,";
+  const glow = kind === "diamond" || kind === "compass" ? "rgba(160,230,255," : kind === "medicine" ? "rgba(255,170,180," : kind === "cutlass" ? "rgba(255,120,110," : "rgba(255,226,140,";
   ctx.fillStyle = `${glow}${0.2 + 0.12 * Math.sin(t / 300 + seed)})`;
   ctx.beginPath();
   ctx.ellipse(x, y, 22, 9, 0, 0, Math.PI * 2);
   ctx.fill();
   shadow(ctx, x, y, 9, 3);
   drawItem(ctx, kind, x, y - 12 + bob, 22, t);
+  if (kind === "diamond") {
+    // a twinkle that catches the eye from across the island
+    const tw = (Math.sin(t / 260 + seed * 3) + 1) / 2;
+    ctx.save();
+    ctx.translate(x + 9, y - 24 + bob);
+    ctx.rotate(t / 900);
+    ctx.fillStyle = `rgba(255,255,255,${0.35 + tw * 0.65})`;
+    const r = 3 + tw * 6;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const rr = i % 2 ? r * 0.25 : r;
+      ctx.lineTo(Math.cos((i * Math.PI) / 4) * rr, Math.sin((i * Math.PI) / 4) * rr);
+    }
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 export function drawPearls(ctx: CanvasRenderingContext2D, x: number, y: number, n: number, t: number) {

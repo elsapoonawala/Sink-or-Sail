@@ -20,7 +20,11 @@ interface Smooth {
   moving: boolean;
   mounted: boolean;
   busy: boolean;
+  down: boolean;
 }
+
+/** Crates and pearl piles you've had on screen this game, for the map. */
+export const spotted = { round: -1, ids: new Set<string>() };
 
 interface Particle {
   x: number;
@@ -39,6 +43,8 @@ export interface WorldApi {
   setStick(x: number, y: number): void;
   /** Where the local player is right now. */
   me(): { x: number; y: number };
+  /** Zoom the camera in (>1) or out (<1). */
+  zoomBy(f: number): void;
 }
 
 export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid: string) => void; api: React.MutableRefObject<WorldApi | null> }) {
@@ -57,6 +63,10 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     let waterLevel = -99;
     let waterPainted = 0;
     const props: Prop[] = scatterProps();
+    if (spotted.round !== viewRef.current.round) {
+      spotted.round = viewRef.current.round;
+      spotted.ids.clear();
+    }
 
     const startMe = viewRef.current.players.find((p) => p.id === viewRef.current.you);
     const me = { x: startMe?.x ?? 1250, y: startMe?.y ?? 1300, dir: startMe?.dir ?? 0, moving: false };
@@ -75,6 +85,13 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     let vh = 0;
     let dpr = 1;
     let scale = 1;
+    let base = 1;
+    let zoom = 1;
+    const fitScale = () => Math.min(vw / (W + 260), vh / (H + 260));
+    const setZoom = (z: number) => {
+      zoom = Math.max(fitScale() / base, Math.min(2.2 / base, z));
+      scale = base * zoom;
+    };
 
     api.current = {
       setStick(x, y) {
@@ -83,6 +100,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         if (x || y) target = null;
       },
       me: () => ({ x: me.x, y: me.y }),
+      zoomBy: (f) => setZoom(zoom * f),
     };
 
     const resize = () => {
@@ -92,7 +110,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       vh = r.height;
       canvas.width = Math.round(vw * dpr);
       canvas.height = Math.round(vh * dpr);
-      scale = Math.max(0.62, Math.min(1.5, Math.min(vw, vh) / 560));
+      base = Math.max(0.62, Math.min(1.5, Math.min(vw, vh) / 560));
+      setZoom(zoom);
     };
     resize();
     const ro = new ResizeObserver(resize);
@@ -122,6 +141,17 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     window.addEventListener("blur", clearKeys);
 
     let down: { x: number; y: number; t: number; id: number; mouse: boolean } | null = null;
+    // Two fingers pinch to zoom; the mouse wheel zooms too.
+    const touches = new Map<number, { x: number; y: number }>();
+    let pinch: { d0: number; z0: number } | null = null;
+    const spread = () => {
+      const [a, b] = [...touches.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y) || 1;
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom(zoom * Math.exp(-e.deltaY * 0.0015));
+    };
     const pick = (sx: number, sy: number): string | null => {
       const w = toWorld(sx, sy);
       let best: string | null = null;
@@ -139,13 +169,29 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     };
     const onDown = (e: PointerEvent) => {
       const r = canvas.getBoundingClientRect();
-      down = { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now(), id: e.pointerId, mouse: e.pointerType === "mouse" };
       canvas.setPointerCapture(e.pointerId);
+      if (e.pointerType !== "mouse") {
+        touches.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
+        if (touches.size >= 2) {
+          pinch = { d0: spread(), z0: zoom };
+          down = null;
+          stick.x = 0;
+          stick.y = 0;
+          joy = null;
+          return;
+        }
+      }
+      down = { x: e.clientX - r.left, y: e.clientY - r.top, t: performance.now(), id: e.pointerId, mouse: e.pointerType === "mouse" };
       if (down.mouse && e.button === 0 && !pick(down.x, down.y)) target = toWorld(down.x, down.y);
     };
     const onMove = (e: PointerEvent) => {
-      if (!down || e.pointerId !== down.id) return;
       const r = canvas.getBoundingClientRect();
+      if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX - r.left, y: e.clientY - r.top });
+      if (pinch && touches.size >= 2) {
+        setZoom(pinch.z0 * (spread() / pinch.d0));
+        return;
+      }
+      if (!down || e.pointerId !== down.id) return;
       const x = e.clientX - r.left;
       const y = e.clientY - r.top;
       if (down.mouse) {
@@ -166,6 +212,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     };
     let joy: { ox: number; oy: number; x: number; y: number } | null = null;
     const onUp = (e: PointerEvent) => {
+      touches.delete(e.pointerId);
+      if (touches.size < 2) pinch = null;
       if (!down || e.pointerId !== down.id) return;
       const r = canvas.getBoundingClientRect();
       const x = e.clientX - r.left;
@@ -187,6 +235,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerup", onUp);
     canvas.addEventListener("pointercancel", onUp);
+    canvas.addEventListener("wheel", onWheel, { passive: false });
     const noMenu = (e: Event) => e.preventDefault();
     canvas.addEventListener("contextmenu", noMenu);
 
@@ -277,7 +326,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         const ty = l?.y ?? p.y;
         let o = others.get(p.id);
         if (!o) {
-          o = { x: tx, y: ty, dir: p.dir, moving: false, mounted: p.mounted, busy: false };
+          o = { x: tx, y: ty, dir: p.dir, moving: false, mounted: p.mounted, busy: false, down: false };
           others.set(p.id, o);
         }
         const k = Math.min(1, dt * 9);
@@ -292,6 +341,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         o.moving = l ? (l.flags & 1) === 1 : p.moving;
         o.mounted = l ? (l.flags & 2) === 2 : p.mounted;
         o.busy = l ? (l.flags & 4) === 4 : now < p.busyUntil;
+        o.down = l ? (l.flags & 8) === 8 : now < p.downUntil;
       }
 
       // Camera eases after you, staying over the island.
@@ -301,8 +351,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       cam.y += (focus.y - cam.y) * Math.min(1, dt * 4);
       const halfW = vw / 2 / scale;
       const halfH = vh / 2 / scale;
-      cam.x = Math.max(halfW - 200, Math.min(W + 200 - halfW, cam.x));
-      cam.y = Math.max(halfH - 200, Math.min(H + 200 - halfH, cam.y));
+      cam.x = halfW * 2 > W + 400 ? W / 2 : Math.max(halfW - 200, Math.min(W + 200 - halfW, cam.x));
+      cam.y = halfH * 2 > H + 400 ? H / 2 : Math.max(halfH - 200, Math.min(H + 200 - halfH, cam.y));
 
       // New world events become sounds and sparkles.
       for (const f of v.fx) {
@@ -331,6 +381,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           case "horse": if (near) sfx.click(); break;
           case "tide": sfx.flood(); break;
           case "brig": sfx.alert(); break;
+          case "strike": burst("#ff8f7a", 18, true); if (near) sfx.alert(); break;
+          case "wave": sfx.deal(); break;
         }
       }
 
@@ -353,7 +405,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       if (v.phase === "play") drawGangway(ctx, t, !!self?.carry.length);
 
       // Place names are painted on the land, under people and trees.
-      ctx.font = "italic 700 15px Georgia, serif";
+      ctx.font = `italic 700 ${Math.round(Math.max(15, 11 / scale))}px Georgia, serif`;
       for (const id of ZONE_IDS) {
         const z = ZONES[id];
         if (z.x < x0 || z.x > x1 || z.y < y0 || z.y > y1) continue;
@@ -369,15 +421,23 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       const items: { y: number; draw: () => void }[] = [];
       for (const p of props) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1 && level - 0.25 < 99 && footing(p.x, p.y, g) > 0.6) items.push({ y: p.y, draw: () => drawProp(ctx, p, t) });
       for (const l of drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level)) items.push(l);
-      for (const c of v.crates) if (c.x > x0 && c.x < x1 && c.y > y0 && c.y < y1) items.push({ y: c.y, draw: () => drawCrate(ctx, c.kind, c.x, c.y, t, c.x * 0.01) });
-      for (const pile of v.piles) if (pile.x > x0 && pile.x < x1) items.push({ y: pile.y, draw: () => drawPearls(ctx, pile.x, pile.y, pile.n, t) });
+      for (const c of v.crates) {
+        if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue;
+        if (c.zone !== "cave" || v.caveOpen) spotted.ids.add(c.id);
+        items.push({ y: c.y, draw: () => drawCrate(ctx, c.kind, c.x, c.y, t, c.x * 0.01, Math.max(1, 0.75 / scale)) });
+      }
+      for (const pile of v.piles) {
+        if (pile.x < x0 || pile.x > x1 || pile.y < y0 || pile.y > y1) continue;
+        spotted.ids.add(pile.id);
+        items.push({ y: pile.y, draw: () => drawPearls(ctx, pile.x, pile.y, pile.n, t) });
+      }
       const bodies: { p: PlayerView; s: Smooth }[] = [];
       for (const p of v.players) {
         if (v.phase !== "play" && v.phase !== "lobby") break;
-        const s: Smooth = p.id === v.you ? { ...me, mounted: self?.mounted ?? false, busy: now < (self?.busyUntil ?? 0) } : others.get(p.id)!;
+        const s: Smooth = p.id === v.you ? { ...me, mounted: self?.mounted ?? false, busy: now < (self?.busyUntil ?? 0), down: now < (self?.downUntil ?? 0) } : others.get(p.id)!;
         if (!s || p.brig) continue;
         bodies.push({ p, s });
-        items.push({ y: s.y, draw: () => drawPerson(ctx, { ...s, role: p.role, seat: p.seat, swim: swimming(s.x, s.y, g) }, t + p.seat * 137) });
+        items.push({ y: s.y, draw: () => drawPerson(ctx, { ...s, busy: s.busy && !s.down, role: p.role, seat: p.seat, swim: swimming(s.x, s.y, g) }, t + p.seat * 137) });
       }
       items.sort((a, b) => a.y - b.y);
       for (const it of items) it.draw();
@@ -450,6 +510,15 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           ctx.fill();
         }
         ctx.globalAlpha = 1;
+      }
+
+      // Zoomed far out: a gold ring so you can find yourself.
+      if (scale < 0.7 && v.phase === "play") {
+        ctx.strokeStyle = `rgba(242,209,75,${0.6 + 0.3 * Math.sin(t / 200)})`;
+        ctx.lineWidth = 3 / scale;
+        ctx.beginPath();
+        ctx.arc(me.x, me.y - 20, 22 / scale, 0, Math.PI * 2);
+        ctx.stroke();
       }
 
       // Walk target marker.
@@ -557,6 +626,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("pointerup", onUp);
       canvas.removeEventListener("pointercancel", onUp);
+      canvas.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("contextmenu", noMenu);
       api.current = null;
     };
@@ -624,11 +694,33 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
       ctx.drawImage(water, 0, 0, size, hgt);
       const me = v.players.find((p) => p.id === v.you);
       const lamp = now < v.lampUntil;
+      const dot = Math.max(3, size / 110);
+      for (const pile of v.piles) {
+        if (!lamp && !spotted.ids.has(pile.id)) continue;
+        ctx.fillStyle = "#f6f0e6";
+        ctx.beginPath();
+        ctx.arc(pile.x * k, pile.y * k, dot * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      }
       for (const cr of v.crates) {
-        const show = lamp || (me?.role === "physician" && cr.kind === "medicine");
+        const show = lamp || spotted.ids.has(cr.id) || (me?.role === "physician" && cr.kind === "medicine");
         if (!show) continue;
-        ctx.fillStyle = cr.kind === "medicine" ? "#ff8f9c" : cr.kind === "diamond" || cr.kind === "compass" ? "#bfe8f5" : "#f2d14b";
-        ctx.fillRect(cr.x * k - 1.5, cr.y * k - 1.5, 3, 3);
+        ctx.fillStyle = cr.kind === "medicine" ? "#ff8f9c" : cr.kind === "diamond" || cr.kind === "compass" ? "#bfe8f5" : cr.kind === "cutlass" ? "#ff6b5e" : "#f2d14b";
+        ctx.strokeStyle = "rgba(20,20,20,.6)";
+        ctx.lineWidth = 0.8;
+        if (cr.kind === "diamond") {
+          ctx.beginPath();
+          ctx.moveTo(cr.x * k, cr.y * k - dot * 0.8);
+          ctx.lineTo(cr.x * k + dot * 0.6, cr.y * k);
+          ctx.lineTo(cr.x * k, cr.y * k + dot * 0.8);
+          ctx.lineTo(cr.x * k - dot * 0.6, cr.y * k);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        } else {
+          ctx.fillRect(cr.x * k - dot / 2, cr.y * k - dot / 2, dot, dot);
+          ctx.strokeRect(cr.x * k - dot / 2, cr.y * k - dot / 2, dot, dot);
+        }
       }
       // ferry
       ctx.fillStyle = "#f3ece0";

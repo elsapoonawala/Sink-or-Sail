@@ -33,7 +33,7 @@ export interface VoiceState {
   muted: boolean;
 }
 
-/** Compact positions sent ten times a second: [id, x, y, dir*100, flags]. flags: 1 moving, 2 mounted, 4 busy. */
+/** Compact positions sent ten times a second: [id, x, y, dir*100, flags]. flags: 1 moving, 2 mounted, 4 busy, 8 knocked out. */
 export type PosTuple = [string, number, number, number, number];
 export interface PosMessage {
   t: number;
@@ -55,6 +55,7 @@ export type ClientAction =
   | { type: "lamp" }
   | { type: "dump" }
   | { type: "ready"; ready?: boolean }
+  | { type: "strike"; target: string }
   | { type: "accuse"; target: string }
   | { type: "vote"; yes: boolean }
   | { type: "offer"; to: string; give: { itemIds: string[]; pearls: number }; want: { kinds: Record<string, number>; pearls: number } }

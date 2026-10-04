@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type GameState, addPlayer, accuse, castVote, createGame, makeOffer, moveTo, needsFor, player, respondOffer,
-  setReady, startGame, tick, viewFor, NEEDS, SAIL_COUNTDOWN,
+  setReady, startGame, strike, tick, viewFor, KNOCKOUT_MS, NEEDS, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
 import { DOCK, GANGWAY, ZONES, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
@@ -123,6 +123,64 @@ describe("a game", () => {
     for (const p of s.players) if (p.id !== w.id) castVote(s, p.id, true, 1_000_200);
     expect(w.brig).toBe(true);
     expect(s.vote!.outcome).toBe("jailed");
+  });
+});
+
+describe("crates, pearls and the cutlass", () => {
+  it("starts with two waves of crates and washes up the third later in the tide", () => {
+    const s = game(1);
+    const first = s.crates.filter((c) => c.zone !== "cave").length;
+    expect(first).toBeGreaterThanOrEqual(7);
+    tick(s, s.tideStartedAt + s.tideMs / WAVES + 1, seeded());
+    expect(s.crates.filter((c) => c.zone !== "cave").length).toBe(first);
+    tick(s, s.tideStartedAt + (2 * s.tideMs) / WAVES + 1, seeded());
+    expect(s.crates.filter((c) => c.zone !== "cave").length).toBeGreaterThanOrEqual(11);
+    expect(s.piles.length).toBeGreaterThanOrEqual(6);
+    tick(s, s.tideStartedAt + s.tideMs + 1, seeded());
+    expect(s.tide).toBe(2);
+    expect(s.spawnedPart).toBe(0);
+  });
+
+  it("pays a pearl for each spare supply loaded", () => {
+    const s = game(1);
+    const me = player(s, "p0")!;
+    for (let i = 0; i < NEEDS.fuel; i++) s.hold.push({ id: `h${i}`, kind: "fuel", owner: "p0" });
+    me.carry = [{ id: "x", kind: "fuel" }];
+    const before = me.pearls;
+    me.x = GANGWAY.x;
+    me.y = GANGWAY.y;
+    tick(s, 1_000_100, seeded());
+    expect(me.carry).toHaveLength(0);
+    expect(me.pearls).toBe(before + 1);
+  });
+
+  it("knocks a player out with a cutlass and spills their cargo", () => {
+    const s = game(2);
+    const [a, b] = s.players;
+    b.x = a.x + 30;
+    b.y = a.y;
+    a.carry = [{ id: "k", kind: "cutlass" }];
+    b.carry = [{ id: "f", kind: "fuel" }, { id: "m", kind: "medicine" }];
+    const crates = s.crates.length;
+    expect(strike(s, a.id, b.id, 1_000_100)).toBeNull();
+    expect(a.carry).toHaveLength(0);
+    expect(b.carry).toHaveLength(0);
+    expect(s.crates.length).toBe(crates + 2);
+    expect(moveTo(s, b.id, b.x + 5, b.y, 0, true, 1_000_200)).toBe(false);
+    a.carry = [{ id: "k2", kind: "cutlass" }];
+    expect(strike(s, a.id, b.id, 1_000_300)).not.toBeNull();
+    tick(s, 1_000_100 + KNOCKOUT_MS + 10, seeded());
+    expect(b.downUntil).toBe(0);
+  });
+
+  it("never loads the cutlass into the hold", () => {
+    const s = game(1);
+    const me = player(s, "p0")!;
+    me.carry = [{ id: "k", kind: "cutlass" }];
+    me.x = GANGWAY.x;
+    me.y = GANGWAY.y;
+    tick(s, 1_000_100, seeded());
+    expect(me.carry.map((c) => c.kind)).toEqual(["cutlass"]);
   });
 });
 

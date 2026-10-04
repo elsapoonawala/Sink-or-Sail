@@ -14,12 +14,12 @@ const SLIDES = [
   },
   {
     title: "Walk anywhere",
-    body: "Use WASD or the arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Saddle a horse at the Royal Stables to ride much faster.",
+    body: "Use WASD or the arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Scroll, pinch or use the − button to zoom out and see more of the island. Saddle a horse at the Royal Stables to ride much faster.",
     art: <div className="howto-keys"><kbd>W</kbd><div><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div></div>,
   },
   {
     title: "Carry crates to the ferry",
-    body: "Walk into glowing crates to pick them up. You carry 3. Walk onto the gangway by the ferry to load them. The gauges at the top show what the crossing still needs.",
+    body: "Walk into glowing crates to pick them up. You carry 3. Walk onto the gangway by the ferry to load them. A full game needs 8 fuel, 6 medicine and 5 tools (a quick game 4, 3 and 2). Spares you load earn a pearl each.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -29,13 +29,18 @@ const SLIDES = [
     ),
   },
   {
+    title: "Ten crates every tide",
+    body: "About ten crates wash up each tide in three waves: when the tide turns, a third of the way in, and two thirds of the way in. The tide card counts down to the next wave and the news says where they landed. Each tide also brings two diamonds and fresh pearls on the beaches, and some crates hide a pearl inside.",
+    art: <div className="howto-cards"><CardArt kind="tools" size={44} /><CardArt kind="diamond" size={44} /><span className="howto-pearls"><PearlIcon size={22} /><PearlIcon size={18} /></span></div>,
+  },
+  {
     title: "The tide takes the island",
     body: "Every few minutes the water rises and drowns the lowest places, with their crates. Dotted lines on the ground show where the next tides will reach. Grab what's low first.",
     art: <div className="howto-tide"><span /><span /><span /></div>,
   },
   {
     title: "Treasure and secrets",
-    body: "Diamonds you load are yours if the ferry makes it. Dive at the coves for pearls and barter them at the market. Light the lighthouse to reveal every crate. The palace compass opens a sealed cave.",
+    body: "Diamonds you load are yours if the ferry makes it. Dive at the coves for pearls and barter them at the market. Light the lighthouse to reveal every crate. The palace compass opens a sealed cave with three diamonds.",
     art: (
       <div className="howto-cards">
         <CardArt kind="diamond" size={54} />
@@ -43,6 +48,11 @@ const SLIDES = [
         <span className="howto-pearls"><PearlIcon size={26} /><PearlIcon size={22} /><PearlIcon size={18} /></span>
       </div>
     ),
+  },
+  {
+    title: "The cutlass",
+    body: "About one crate a tide holds a cutlass. Walk right up to someone and strike: they're knocked out for 15 seconds and drop everything they carry, ready for you to grab. Then they're on guard for 10 seconds. The cutlass breaks after one strike. Bots use them too.",
+    art: <div className="howto-cards"><CardArt kind="cutlass" size={60} /></div>,
   },
   {
     title: "All aboard",
