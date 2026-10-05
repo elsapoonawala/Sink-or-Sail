@@ -4,9 +4,9 @@
 import {
   type GameState, type Kind, type Player, type Rng, type Supply, PIER, SUPPLIES,
   carryLimit, castVote, dive, dump, ground, goalOf, lightLamp, nearDive, nearGangway, nearLamp,
-  needsMet, savedForPeople, setReady, slotsUsed, speedOf, strike, capacityOf, STRIKE_R,
+  needsMet, savedForPeople, setReady, slotsUsed, speedOf, strike, capacityOf, STRIKE_R, MONSTER_R, MONSTER_WARN_MS,
 } from "./game";
-import { DIVE_SPOTS, GANGWAY, LAMP, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
+import { DIVE_SPOTS, GANGWAY, LAMP, ZONES, ZONE_IDS, findPath, footing, nearestFooting, onDock } from "./world";
 
 export const BOT_NAMES = ["Odette", "Augustin", "Ines", "Florian", "Margaux", "Teodor", "Beatrix", "Lucien"];
 
@@ -32,10 +32,12 @@ export interface Brain {
   /** A short breather after picking something up. */
   pauseUntil: number;
   lastCarry: number;
+  /** The monster this bot already decided whether to dodge. */
+  dodged: number;
 }
 
 export function newBrain(): Brain {
-  return { goal: null, path: [], thinkAt: 0, progressAt: 0, lastX: 0, lastY: 0, answered: new Set(), votedOn: "", voteAt: 0, offerAt: 0, pauseUntil: 0, lastCarry: 0 };
+  return { goal: null, path: [], thinkAt: 0, progressAt: 0, lastX: 0, lastY: 0, answered: new Set(), votedOn: "", voteAt: 0, offerAt: 0, pauseUntil: 0, lastCarry: 0, dodged: 0 };
 }
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -70,6 +72,24 @@ export function botTick(s: GameState, p: Player, b: Brain, now: number, dt: numb
     return changed;
   }
   changed = swing(s, p, now, rng) || changed;
+
+  // Bubbles nearby while carrying crates? Most of the time, back away from the shore.
+  const m = s.monster;
+  if (m && !m.grabbed && b.dodged !== m.grabAt && cargo(p).length && dist(p, m) < MONSTER_R + 70) {
+    b.dodged = m.grabAt;
+    if (rng() < 0.7) {
+      const d = dist(p, m) || 1;
+      const gr = ground(s, now);
+      const to = nearestFooting(p.x + ((p.x - m.x) / d) * 180, p.y + ((p.y - m.y) / d) * 180, gr);
+      const path = findPath(p.x, p.y, to.x, to.y, gr);
+      if (path?.length) {
+        b.goal = { kind: "wander", x: to.x, y: to.y };
+        b.path = path;
+        b.progressAt = now;
+        b.thinkAt = now + MONSTER_WARN_MS + 1500;
+      }
+    }
+  }
 
   // Arrived somewhere? Do the thing that brought us here.
   const g = b.goal;

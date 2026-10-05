@@ -75,6 +75,11 @@ export const sfx = {
     tone(990, 0.08, "triangle", 0.04, 0.05);
   },
   flood: () => noise(2.2, 0.12, 300, 1600),
+  monster: () => {
+    tone(70, 0.9, "sawtooth", 0.08);
+    tone(55, 1.1, "sawtooth", 0.06, 0.1);
+    noise(0.8, 0.12, 500, 2500);
+  },
   trade: () => {
     tone(784, 0.12, "triangle", 0.06);
     tone(1046, 0.18, "triangle", 0.06, 0.1);

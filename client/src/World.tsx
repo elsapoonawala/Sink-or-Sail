@@ -2,13 +2,13 @@
 // keys, a floating joystick, tap-to-walk or click-to-walk, and everyone else in real time.
 
 import { useEffect, useRef } from "react";
-import { type GameView, type PlayerView, carryLimit, speedOf } from "../../shared/game";
+import { type GameView, type PlayerView, carryLimit, speedOf, MONSTER_R } from "../../shared/game";
 import { SIGNALS } from "../../shared/protocol";
 import { FERRY, GANGWAY, H, W, ZONES, ZONE_IDS, buildingAt, footing, outdoorPos, seaLevel, swimming, tideLevel } from "../../shared/world";
 import { drawDoors, drawInterior, outdoorBuildings } from "./interiors";
 import { getStore, live, sendMove } from "./net";
 import {
-  type Prop, drawCrate, drawDock, drawFerry, drawGangway, drawGlints, drawItem, drawLandmarks, drawPearls, drawPerson,
+  type Prop, drawCrate, drawDock, drawFerry, drawGangway, drawMonster, drawGlints, drawItem, drawLandmarks, drawPearls, drawPerson,
   drawProp, drawRoads, paintTerrain, paintWater, scatterProps, seaColor,
 } from "./scene";
 import { sfx } from "./sound";
@@ -419,6 +419,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           case "brig": sfx.alert(); break;
           case "strike": burst("#ff8f7a", 18, true); if (near) sfx.alert(); break;
           case "wave": sfx.deal(); break;
+          case "monster": burst("#d8f6f2", 26, true); sfx.monster(); break;
         }
       }
 
@@ -459,6 +460,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       }
 
       const items: { y: number; draw: () => void }[] = [];
+      const mon = v.phase === "play" && !roomNow ? v.monster : null;
+      if (mon) items.push({ y: mon.y, draw: () => drawMonster(ctx, mon, now, t, MONSTER_R) });
       if (!roomNow) for (const p of props) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1 && level - 0.25 < 99 && footing(p.x, p.y, g) > 0.6) items.push({ y: p.y, draw: () => drawProp(ctx, p, t) });
       if (!roomNow) for (const l of [...drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level), ...outdoorBuildings(ctx)]) items.push(l);
       for (const c of v.crates) {

@@ -83,7 +83,7 @@ export function Rules() {
           <li key={i}><span aria-hidden="true">{r.icon}</span><p>{r.text}</p></li>
         ))}
       </ol>
-      <p className="quick-foot">With 5 or more players, one of you may secretly be the <b>Wrecker</b>, throwing crates overboard. If she sinks, the Wrecker wins. That's all you need. Hints on screen guide you through the first tide.</p>
+      <p className="quick-foot">Watch for <b>bubbles</b> near the shore: a sea monster grabs the crates of anyone in its red ring. With 5 or more players, one of you may secretly be the <b>Wrecker</b>, throwing crates overboard. If she sinks, the Wrecker wins. That's all you need. Hints on screen guide you through the first tide.</p>
       <button className="btn ghost small" type="button" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Hide the details" : "All the details"}</button>
       {more && <FullRules />}
     </div>
@@ -142,17 +142,21 @@ function FullRules() {
         <p>About one crate a tide holds a cutlass. While you hold it, a red <b>Attack</b> button stays on screen and a red arrow points to the nearest player. Walk right up to them and tap Attack: they're knocked out for 15 seconds and drop everything they carry. The cutlass breaks after one hit, and a player who was just knocked out can't be hit again for 10 seconds after they get up.</p>
       </section>
       <section>
-        <h4>7. Sailing</h4>
+        <h4>7. The sea monster</h4>
+        <p>Every half minute or so, bubbles and a red ring appear in the water by the shore, usually near someone carrying crates. Three seconds later a tentacle lashes up and takes every crate carried by anyone inside the ring (it leaves a cutlass alone). Step out of the ring in time and you're safe. It never comes near the pier.</p>
+      </section>
+      <section>
+        <h4>8. Sailing</h4>
         <p>Be on the wooden pier when the Kohinoor leaves. Anyone off the pier is left behind and their fortune is lost. The Kohinoor won't wait.</p>
       </section>
       <section>
-        <h4>8. Characters</h4>
+        <h4>9. Characters</h4>
         <ul>
           {ROLES.map((r) => <li key={r}><b>{ROLE_INFO[r].name}:</b> {ROLE_INFO[r].power}</li>)}
         </ul>
       </section>
       <section>
-        <h4>9. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
+        <h4>10. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
         <ul>
           <li>One player (two with 7 or more) is secretly a Wrecker. Wreckers win if the Kohinoor sinks.</li>
           <li>Only the Wrecker sees a secret <b>Sink a crate</b> button, on the LOAD HERE circle by the Kohinoor. Each tap throws one crate overboard (the bar drops by 1) with a splash, every 45 seconds at most. Watch who's standing at the Kohinoor when you hear it.</li>

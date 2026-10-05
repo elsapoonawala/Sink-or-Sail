@@ -1382,3 +1382,87 @@ export function drawGlints(ctx: CanvasRenderingContext2D, x0: number, y0: number
   ctx.globalAlpha = 1;
 }
 
+
+/** The sea monster: a dark shape and bubbles with a red ring as warning, then a tentacle lashes up. */
+export function drawMonster(ctx: CanvasRenderingContext2D, m: { x: number; y: number; grabAt: number; goneAt: number }, now: number, t: number, r: number) {
+  ctx.save();
+  ctx.translate(m.x, m.y);
+  if (now < m.grabAt) {
+    const k = Math.max(0, Math.min(1, 1 - (m.grabAt - now) / 3000));
+    // The danger zone: a pulsing red ring.
+    ctx.strokeStyle = `rgba(220,60,60,${0.45 + 0.35 * Math.sin(t / 120)})`;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([12, 9]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 0.72, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(200,40,40,${0.08 + 0.06 * k})`;
+    ctx.fill();
+    // Something big under the water.
+    ctx.fillStyle = `rgba(20,10,35,${0.25 + 0.35 * k})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22 + 30 * k, 14 + 18 * k, Math.sin(t / 400) * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Bubbles.
+    for (let i = 0; i < 9; i++) {
+      const ph = ((t / 900 + i * 0.37) % 1);
+      const bx = Math.sin(i * 2.1 + t / 500) * (16 + 10 * k);
+      const by = 6 - ph * (30 + 20 * k);
+      ctx.strokeStyle = `rgba(230,250,255,${0.9 * (1 - ph)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(bx, by, 2 + (i % 3) * 1.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.font = "700 16px Georgia, serif";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(20,10,20,.8)";
+    ctx.fillStyle = "#ffd2c8";
+    ctx.strokeText("Bubbles! Get away!", 0, -r * 0.72 - 10);
+    ctx.fillText("Bubbles! Get away!", 0, -r * 0.72 - 10);
+  } else {
+    const age = now - m.grabAt;
+    const life = Math.max(1, m.goneAt - m.grabAt);
+    const up = Math.min(1, age / 250) * Math.min(1, Math.max(0, (life - age) / 500));
+    const h = 175 * up;
+    const sway = Math.sin(t / 160) * 22;
+    // Ripples at the base.
+    ctx.strokeStyle = "rgba(230,250,255,.7)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 2; i++) {
+      const rr = 26 + ((age / 6 + i * 20) % 40);
+      ctx.beginPath();
+      ctx.ellipse(0, 4, rr, rr * 0.45, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    if (h > 2) {
+      // A tapering, curling tentacle: sample a curve and build both edges.
+      const pts: { x: number; y: number; w: number }[] = [];
+      for (let i = 0; i <= 16; i++) {
+        const u = i / 16;
+        const curl = u > 0.75 ? (u - 0.75) * 4 : 0;
+        pts.push({ x: sway * u * u + curl * 34 * Math.sign(sway || 1), y: -h * u + curl * 18, w: 20 * (1 - u) + 3 });
+      }
+      ctx.fillStyle = "#6a3d7d";
+      ctx.strokeStyle = "#2f1838";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      pts.forEach((p, i) => (i ? ctx.lineTo(p.x - p.w, p.y) : ctx.moveTo(p.x - p.w, p.y)));
+      for (let i = pts.length - 1; i >= 0; i--) ctx.lineTo(pts[i].x + pts[i].w, pts[i].y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Suckers along the inner side.
+      ctx.fillStyle = "#e9b8d8";
+      for (let i = 1; i < 13; i += 2) {
+        const p = pts[i];
+        ctx.beginPath();
+        ctx.arc(p.x + p.w * 0.45, p.y, Math.max(1.5, p.w * 0.32), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+}

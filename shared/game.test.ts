@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type GameState, addPlayer, accuse, castVote, createGame, moveTo, player,
-  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
+  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, MONSTER_R, MONSTER_WARN_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
 import { BUILDING, BUILDINGS, DOCK, GANGWAY, ZONES, buildingAt, buildingOpen, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
@@ -272,5 +272,20 @@ describe("bots", () => {
     expect(s.hold.length).toBeGreaterThan(3);
     // Bots never go indoors.
     for (const p of s.players) if (p.bot) expect(buildingAt(p.x, p.y)).toBeNull();
+  });
+  it("warns with bubbles, then the sea monster grabs crates from anyone still close", () => {
+    const s = game(2);
+    const [a, b] = s.players;
+    s.monster = { x: a.x, y: a.y + 10, grabAt: 1_000_000 + MONSTER_WARN_MS, goneAt: 1_000_000 + MONSTER_WARN_MS + 2000, grabbed: false };
+    a.carry = [{ id: "m1", kind: "fuel" }, { id: "m2", kind: "cutlass" }];
+    b.x = a.x + MONSTER_R + 200;
+    b.carry = [{ id: "m3", kind: "tools" }];
+    tick(s, 1_000_000 + 100, seeded());
+    expect(a.carry).toHaveLength(2); // still just bubbles
+    tick(s, 1_000_000 + MONSTER_WARN_MS + 10, seeded());
+    expect(a.carry.map((c) => c.kind)).toEqual(["cutlass"]);
+    expect(b.carry).toHaveLength(1);
+    tick(s, 1_000_000 + MONSTER_WARN_MS + 2100, seeded());
+    expect(s.monster).toBeNull();
   });
 });

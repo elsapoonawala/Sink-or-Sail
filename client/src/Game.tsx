@@ -1,7 +1,7 @@
 // The in-game screen: the living island with a brass-and-velvet HUD over it.
 import { useEffect, useRef, useState } from "react";
 import {
-  type GameView, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R,
+  type GameView, DUMP_COOLDOWN, MONSTER_R, KIND_INFO, ROLE_INFO, STRIKE_R,
   carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nextWaveAt,
 } from "../../shared/game";
 import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
@@ -153,6 +153,7 @@ export function Game({ v }: { v: GameView }) {
   else if (busy) hint = "Diving…";
   else if (buildingAt(pos.x, pos.y) && me.carry.length >= carryLimit(me)) hint = "Hands full. Tap Go outside and take it to the Kohinoor.";
   else if (buildingAt(pos.x, pos.y)) hint = `You're inside ${buildingAt(pos.x, pos.y)!.name}. Walk into anything glowing to take it, then tap Go outside.`;
+  else if (v.monster && now < v.monster.grabAt && Math.hypot(pos.x - v.monster.x, pos.y - v.monster.y) < MONSTER_R + 80) hint = me.carry.some((c) => c.kind !== "cutlass") ? "Bubbles! A sea monster is coming up. Get out of the red ring or it grabs your crates!" : "Bubbles! A sea monster is coming up. Stay out of the red ring.";
   else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
   else if (v.sailAt) hint = `The Kohinoor sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";

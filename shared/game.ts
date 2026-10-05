@@ -38,6 +38,11 @@ export const PICKUP_R = 30;
 export const DUMP_COOLDOWN = 45_000;
 export const SAIL_COUNTDOWN = 15_000;
 export const SAIL_MS = 7_000;
+/** The sea monster: bubbles warn for MONSTER_WARN_MS, then a tentacle grabs the crates of anyone within MONSTER_R. */
+export const MONSTER_R = 90;
+export const MONSTER_WARN_MS = 3_000;
+export const MONSTER_GRAB_MS = 2_200;
+export const MONSTER_FIRST_MS = 50_000;
 export const DIVE_MS = 2_500;
 /** Crates wash up in this many waves each tide, evenly spaced. */
 export const WAVES = 3;
@@ -147,7 +152,7 @@ export interface LogEntry {
 /** Short-lived world events the client turns into sounds and sparkles. */
 export interface Fx {
   n: number;
-  kind: "pickup" | "load" | "splash" | "dive" | "lamp" | "gate" | "sink" | "swept" | "barter" | "horse" | "trade" | "tide" | "brig" | "strike" | "wave";
+  kind: "pickup" | "load" | "splash" | "dive" | "lamp" | "gate" | "sink" | "swept" | "barter" | "horse" | "trade" | "tide" | "brig" | "strike" | "wave" | "monster";
   x: number;
   y: number;
   by?: string;
@@ -164,6 +169,14 @@ export interface Result {
   grandFortune: string[];
   wreckers: string[];
   early: boolean;
+}
+
+export interface Monster {
+  x: number;
+  y: number;
+  grabAt: number;
+  goneAt: number;
+  grabbed: boolean;
 }
 
 export interface GameState {
@@ -189,6 +202,9 @@ export interface GameState {
   lampTide: number;
   secretFound: boolean;
   caveOpen: boolean;
+  /** A tentacle rising near the shore: bubbles until grabAt, then it strikes once and sinks at goneAt. */
+  monster: Monster | null;
+  nextMonsterAt: number;
   marketStock: number;
   diveReady: number[];
   /** How many of this tide's crate waves have washed up. */
@@ -342,6 +358,8 @@ export function createGame(code: string, hostId: string): GameState {
     lampTide: 0,
     secretFound: false,
     caveOpen: false,
+    monster: null,
+    nextMonsterAt: 0,
     marketStock: 0,
     diveReady: DIVE_SPOTS.map(() => 0),
     spawnedPart: 0,
@@ -414,6 +432,8 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   s.lampTide = 0;
   s.secretFound = false;
   s.caveOpen = false;
+  s.monster = null;
+  s.nextMonsterAt = now + (Number((globalThis as any).process?.env?.MONSTER_FIRST_MS) || MONSTER_FIRST_MS);
   s.diveReady = DIVE_SPOTS.map(() => 0);
   s.closed = [];
   s.log = [];
@@ -589,6 +609,72 @@ export function leaveBuilding(s: GameState, pid: string, now: number): string | 
 }
 
 /** Somewhere dry a short walk from (x, y). */
+/** Every so often a tentacle rises in the shallows near someone, after a few seconds of bubbles.
+ *  Anyone still close when it strikes loses the crates they carry to the sea. */
+function seaMonster(s: GameState, now: number, rng: Rng, g: Ground) {
+  const m = s.monster;
+  if (m) {
+    if (!m.grabbed && now >= m.grabAt) {
+      m.grabbed = true;
+      fx(s, "monster", m.x, m.y);
+      const caught: string[] = [];
+      for (const p of s.players) {
+        if (p.brig || dist(p.x, p.y, m.x, m.y) > MONSTER_R) continue;
+        const lost = p.carry.filter((c) => c.kind !== "cutlass");
+        if (!lost.length) continue;
+        p.carry = p.carry.filter((c) => c.kind === "cutlass");
+        caught.push(`${p.name} (${lost.length})`);
+      }
+      log(s, caught.length ? `The sea monster grabbed crates from ${caught.join(", ")}!` : "A sea monster lashed out of the water, and missed.", "alert");
+      s.version++;
+    }
+    if (now >= m.goneAt) {
+      s.monster = null;
+      s.nextMonsterAt = now + 30_000 + rng() * 20_000;
+      s.version++;
+    }
+    return;
+  }
+  if (!s.nextMonsterAt || now < s.nextMonsterAt) return;
+  // It hunts people more than bots, and anyone carrying crates most of all.
+  const outdoors = s.players.filter((p) => !p.brig && p.x < 3000);
+  const carrying = (p: Player) => p.carry.some((c) => c.kind !== "cutlass");
+  const pools = [outdoors.filter((p) => !p.bot && carrying(p)), outdoors.filter(carrying), outdoors.filter((p) => !p.bot), outdoors];
+  const pool = pools.find((l) => l.length) ?? [];
+  const target = pool[Math.floor(rng() * pool.length)];
+  // It rises where they're heading, so it's a real threat, but the bubbles give time to swerve.
+  const ahead = target && target.moving ? speedOf(target) * 2 : 0;
+  const spot = target ? shallowsNear(target.x + Math.cos(target.dir) * ahead, target.y + Math.sin(target.dir) * ahead, g, rng) : null;
+  if (!spot) {
+    s.nextMonsterAt = now + 8_000;
+    return;
+  }
+  s.monster = { x: spot.x, y: spot.y, grabAt: now + MONSTER_WARN_MS, goneAt: now + MONSTER_WARN_MS + MONSTER_GRAB_MS, grabbed: false };
+  fx(s, "splash", spot.x, spot.y);
+  s.version++;
+}
+
+/** Water right by the shore, close to (x, y), well away from the pier and the gangway. */
+function shallowsNear(x: number, y: number, g: Ground, rng: Rng) {
+  for (let i = 0; i < 60; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = 30 + rng() * 110;
+    const px = x + Math.cos(a) * r;
+    const py = y + Math.sin(a) * r;
+    if (px < 40 || py < 40 || px > W - 40 || py > H - 40) continue;
+    if (dist(px, py, GANGWAY.x, GANGWAY.y) < 300 || onDock(px, py)) continue;
+    if (depthAt(px, py, g.level) <= 0) continue;
+    // Shore: dry land within a short reach.
+    let shore = false;
+    for (let k = 0; k < 8 && !shore; k++) {
+      const b = (k / 8) * Math.PI * 2;
+      if (footing(px + Math.cos(b) * 70, py + Math.sin(b) * 70, g) >= 1) shore = true;
+    }
+    if (shore) return { x: px, y: py };
+  }
+  return null;
+}
+
 function spotNear(x: number, y: number, g: Ground, rng: Rng) {
   for (let i = 0; i < 40; i++) {
     const a = rng() * Math.PI * 2;
@@ -685,6 +771,7 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
         log(s, `${p.name} turned the compass in the cave door. The Sapphire Caves are open.`, "info");
       }
     }
+    seaMonster(s, now, rng, g);
     if (s.vote && s.vote.outcome === "open") settleVote(s, now, false);
     // Enough people ready on the pier: start the countdown.
     const ready = s.players.filter((p) => p.ready || p.brig).length;
@@ -1040,6 +1127,7 @@ export interface GameView {
   lampTide: number;
   secretFound: boolean;
   caveOpen: boolean;
+  monster: Monster | null;
   closed: BuildingId[];
   marketStock: number;
   diveReady: number[];
@@ -1091,6 +1179,7 @@ export function viewFor(s: GameState, pid: string): GameView {
     lampTide: s.lampTide,
     secretFound: s.secretFound,
     caveOpen: s.caveOpen,
+    monster: s.monster,
     closed: s.closed,
     marketStock: s.marketStock,
     diveReady: s.diveReady,
