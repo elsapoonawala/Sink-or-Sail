@@ -73,7 +73,7 @@ const SLIDES = [
 const QUICK: { icon: string; text: React.ReactNode }[] = [
   { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>.</> },
   { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by the ferry to load them.</> },
-  { icon: "🎯", text: <>Fill the bar at the top: load <b>enough crates</b> before the last tide, or she sinks.</> },
+  { icon: "🎯", text: <>Load <b>8 crates per player</b> (at least 20) onto the ferry before the last tide, <b>or she sinks</b>. The bar at the top counts them.</> },
   { icon: "💎", text: <>Get rich: pearls, diamonds, and your secret order. <b>Trade</b> with anyone, any time.</> },
   { icon: "⚓", text: <>Be <b>on the pier</b> when she sails, or you're left behind.</> },
 ];
