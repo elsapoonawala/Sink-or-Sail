@@ -41,7 +41,7 @@ export function Home() {
       <div className="home-inner">
         <header className="home-title">
           <span className="eyebrow">1 to 8 players · no sign-up</span>
-          <h1>The Last <em>Ferry</em></h1>
+          <h1>Sink <em>or</em> Sail</h1>
           <p className="ornament" aria-hidden="true"><span />✦<span /></p>
           <p className="lede">The tide is rising over Saltmere. Race your friends across the island on foot and on horseback, haul fuel, medicine and tools to the old ferry, and grab diamonds before the sea takes them. Be on the pier when she sails.</p>
         </header>

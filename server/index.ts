@@ -86,5 +86,5 @@ io.on("connection", (socket) => {
 });
 
 http.listen(PORT, () => {
-  console.log(`The Last Ferry is boarding on http://localhost:${PORT}`);
+  console.log(`Sink or Sail is boarding on http://localhost:${PORT}`);
 });

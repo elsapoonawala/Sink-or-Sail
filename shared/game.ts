@@ -1,4 +1,4 @@
-// The Last Ferry: rules engine for the open-world island. Pure game logic shared by the
+// Sink or Sail: rules engine for the open-world island. Pure game logic shared by the
 // server (authoritative) and the client (types and helpers). The server owns the only
 // real GameState, runs tick() ten times a second, and sends each player viewFor().
 
