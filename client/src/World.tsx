@@ -108,18 +108,26 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       },
     };
 
+    // Resizing a canvas wipes it, so only do it when the size really changed, and only from
+    // inside the draw loop: a resize between a draw and the screen update shows a blank
+    // frame, which flickers on phones whose toolbars slide in and out.
+    let sizeDirty = true;
     const resize = () => {
       const r = canvas.getBoundingClientRect();
       dpr = Math.min(2, window.devicePixelRatio || 1);
       vw = r.width;
       vh = r.height;
-      canvas.width = Math.round(vw * dpr);
-      canvas.height = Math.round(vh * dpr);
+      const cw = Math.round(vw * dpr);
+      const ch = Math.round(vh * dpr);
+      if (canvas.width !== cw) canvas.width = cw;
+      if (canvas.height !== ch) canvas.height = ch;
       base = Math.max(0.62, Math.min(1.5, Math.min(vw, vh) / 560));
       setZoom(zoom);
     };
     resize();
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => {
+      sizeDirty = true;
+    });
     ro.observe(canvas);
 
     const toWorld = (sx: number, sy: number) => ({ x: (sx - vw / 2) / scale + cam.x, y: (sy - vh / 2) / scale + cam.y });
@@ -249,6 +257,10 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       raf = requestAnimationFrame(frame);
       const dt = Math.min(0.05, (nowP - prev) / 1000);
       prev = nowP;
+      if (sizeDirty) {
+        sizeDirty = false;
+        resize();
+      }
       const v = viewRef.current;
       const { clockOffset, chat, signals } = getStore();
       const now = Date.now() + clockOffset;

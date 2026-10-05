@@ -61,16 +61,24 @@ export function HomeScene() {
     let vw = 0;
     let vh = 0;
     let dpr = 1;
+    // Resizing a canvas wipes it, so only do it when the size really changed, and only from
+    // inside the draw loop: a resize between a draw and the screen update shows a blank
+    // frame, which flickers on phones whose toolbars slide in and out.
+    let sizeDirty = true;
     const resize = () => {
       const r = canvas.getBoundingClientRect();
       dpr = Math.min(2, window.devicePixelRatio || 1);
       vw = r.width;
       vh = r.height;
-      canvas.width = Math.round(vw * dpr);
-      canvas.height = Math.round(vh * dpr);
+      const cw = Math.round(vw * dpr);
+      const ch = Math.round(vh * dpr);
+      if (canvas.width !== cw) canvas.width = cw;
+      if (canvas.height !== ch) canvas.height = ch;
     };
     resize();
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => {
+      sizeDirty = true;
+    });
     ro.observe(canvas);
 
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -82,6 +90,10 @@ export function HomeScene() {
       if (document.hidden) return;
       const dt = Math.min(0.05, (now - prev) / 1000);
       prev = now;
+      if (sizeDirty) {
+        sizeDirty = false;
+        resize();
+      }
       const t = still ? 0 : now - t0;
       const scale = Math.max(0.5, Math.min(1, Math.max(vw / 1700, vh / 1150)));
       // A slow drift over the harbour, the stables and the palace hill.

@@ -758,3 +758,9 @@ kbd { display: inline-grid; place-items: center; width: 40px; height: 40px; bord
   .walkie-count { display: none; }
   .banner.sail, .vote-card { top: calc(max(10px, env(safe-area-inset-top)) + 146px); }
 }
+
+/* Phones: frosted-glass blur over a canvas that redraws every frame makes mobile browsers
+   flicker, so touch screens get solid panels instead. */
+@media (pointer: coarse) {
+  * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+}
