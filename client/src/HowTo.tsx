@@ -20,7 +20,7 @@ const SLIDES = [
   },
   {
     title: "Grab crates, load the ferry",
-    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the ferry: your crates go in by themselves (or tap the Load button near the dock). About 18 crates wash up every tide, in three waves, and every wave puts 2 crates with your name near you that only you can pick up.",
+    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the ferry: your crates go in by themselves (or tap the Load button near the dock). About 10 crates wash up every tide, in three waves, plus one with your name near you each wave. There aren't enough for anyone to fill their order alone, so trade.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -71,7 +71,7 @@ const SLIDES = [
 ];
 
 const QUICK: { icon: string; text: React.ReactNode }[] = [
-  { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>. The ones with <b>your name</b> are only for you.</> },
+  { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>.</> },
   { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by the ferry to load them.</> },
   { icon: "🎯", text: <>Fill the ferry: <b>8 fuel, 6 medicine, 5 tools</b> before the last tide.</> },
   { icon: "💎", text: <>Get rich: pearls, diamonds, and your secret order. <b>Trade</b> with anyone, any time.</> },
@@ -126,9 +126,9 @@ function FullRules() {
           <li>Walk into a glowing crate to pick it up. You carry 3 at a time (the Engineer carries 4). Tap something in your hands to drop it.</li>
           <li>To load, step onto the gold circle marked <b>LOAD HERE</b> at the ferry's gangway. Everything you carry goes into the hold by itself, and a message confirms it. Near the dock, the <b>Load</b> button walks you there.</li>
           <li>The ferry needs <b>8 fuel, 6 medicine and 5 tools</b> (quick game: 4, 3 and 2). The gauges at the top of the screen show what's aboard. The Antique Compass counts as 1 fuel once it's loaded.</li>
-          <li>The hold has 30 spaces (quick game: 16), and a diamond takes 2 of them. The hold always keeps room for supplies the ferry still needs.</li>
-          <li>About 18 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
-          <li>Every wave also puts <b>2 crates with your name</b> on them near you. Only you can pick those up. Gold pointers at the edge of the screen lead to the nearest crates.</li>
+          <li>The hold never fills up. Once the ferry has enough of a supply, each extra one you load still pays you <b>2 pearls</b>.</li>
+          <li>About 10 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
+          <li>Every wave also puts <b>1 crate with your name</b> near you. Only you can pick it up. It usually holds something <b>another player's order</b> needs, so it's good to trade. Gold pointers at the edge of the screen lead to the nearest crates.</li>
           <li>Seven buildings have a glowing doorstep: the Hospital (by the gardens), the Palace, the Grand Hotel, the Lighthouse, the Royal Stables, the Shipwreck and the Pearl Market Shop. Tap <b>Enter</b> at the door to go in and pick up what's inside, and <b>Go outside</b> to leave. They restock every tide. When the sea reaches a door, that building floods and closes for good. Bots never go inside.</li>
           <li>Bots carry at most 2 crates, move a little slower than people, and leave alone crates that you're close to.</li>
         </ul>
@@ -151,7 +151,7 @@ function FullRules() {
         <h4>7. Pearls, diamonds and your fortune</h4>
         <ul>
           <li>Your fortune is your pearls plus <b>3 for every diamond</b> you loaded (or carried onto the pier). It only counts if the ferry makes it and you're aboard.</li>
-          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves, some crates, filled orders (+6), and spare supplies you load once the ferry has enough of that kind (+1 each).</li>
+          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves, some crates, filled orders (+6), and spare supplies you load once the ferry has enough of that kind (+2 each).</li>
           <li>The Pearl Market sells a supply crate for 3 pearls (3 crates a tide). The merchant sometimes says no; just ask again.</li>
           <li>Two diamonds turn up each tide. Three more lie in the sealed Sapphire Caves: carry the Antique Compass from the palace to the cave door to open it.</li>
           <li>Light the lighthouse lamp (once a tide) to show every crate on the map for 45 seconds and reveal a hidden stepping-stone path.</li>

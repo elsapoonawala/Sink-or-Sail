@@ -22,8 +22,11 @@ export const MAX_PLAYERS = 8;
 /** What the crossing needs, and how big the hold is, for a full game and a quick one. */
 export const NEEDS: Record<Supply, number> = { fuel: 8, medicine: 6, tools: 5 };
 export const QUICK_NEEDS: Record<Supply, number> = { fuel: 4, medicine: 3, tools: 2 };
-export const HOLD_SLOTS = 30;
-export const QUICK_HOLD_SLOTS = 16;
+/** The hold no longer fills up; this is only a guide for bots and the ferry picture. */
+export const HOLD_SLOTS = 999;
+export const QUICK_HOLD_SLOTS = 999;
+/** Pearls a passenger pays for each supply loaded beyond what the crossing needs. */
+export const SPARE_PEARLS = 2;
 
 export const WALK_SPEED = 150;
 export const RIDE_SPEED = 265;
@@ -499,11 +502,11 @@ function dealOrders(s: GameState, rng: Rng) {
 /** What turns up in each place, by tide: about eight supplies, two diamonds and the odd
  *  cutlass a tide. Low places get theirs early, so they're worth raiding before they drown. */
 const SPAWNS: Partial<Record<ZoneId, Kind[]>>[] = [
-  { harbour: ["fuel", "tools"], shipwreck: ["diamond", "fuel", "medicine"], coves: ["medicine", "tools", "diamond"], gardens: ["fuel"], market: ["tools"], lighthouse: ["cutlass"] },
-  { coves: ["fuel", "diamond", "medicine"], harbour: ["medicine", "tools"], market: ["fuel", "cutlass"], stables: ["tools"], gardens: ["medicine"], hotel: ["diamond", "fuel"] },
-  { market: ["fuel", "medicine", "diamond"], gardens: ["tools", "medicine"], lighthouse: ["fuel", "diamond"], hotel: ["tools"], palace: ["fuel"], stables: ["cutlass", "medicine"] },
-  { gardens: ["medicine", "fuel", "diamond"], hotel: ["fuel", "tools", "medicine"], palace: ["medicine", "diamond", "cutlass"], stables: ["tools"], lighthouse: ["fuel"] },
-  { palace: ["fuel", "medicine", "tools"], hotel: ["fuel", "medicine", "diamond"], stables: ["fuel", "tools"], lighthouse: ["medicine"] },
+  { harbour: ["fuel", "tools"], shipwreck: ["diamond", "medicine"], coves: ["medicine"], gardens: ["fuel"], lighthouse: ["cutlass"], market: ["tools"] },
+  { coves: ["fuel", "diamond"], harbour: ["medicine"], market: ["fuel", "cutlass"], stables: ["tools"], hotel: ["diamond"], gardens: ["medicine"] },
+  { market: ["fuel", "diamond"], gardens: ["tools", "medicine"], lighthouse: ["fuel"], stables: ["cutlass"], hotel: ["tools"], palace: ["diamond"] },
+  { gardens: ["medicine", "diamond"], hotel: ["fuel", "tools"], palace: ["medicine", "cutlass"], stables: ["fuel"] },
+  { palace: ["fuel", "medicine", "tools"], hotel: ["diamond"], stables: ["fuel"], lighthouse: ["medicine"] },
 ];
 
 /** About a third of each tide's crates turn up at the start, a third and two thirds of the way through. */
@@ -542,22 +545,20 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
   }
   // A few more supplies wash up anywhere still dry.
   const dryZones = ZONE_IDS.filter((z) => z !== "caves" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.3) <= 0);
-  for (let i = 0; i < 2 && dryZones.length; i++) {
+  for (let i = 0; i < 1 && dryZones.length; i++) {
     const z = dryZones[Math.floor(rng() * dryZones.length)];
     const spot = randomSpot(z, g, rng);
     if (spot) s.crates.push({ id: nid(s, "c"), kind: SUPPLIES[Math.floor(rng() * 3)], x: spot.x, y: spot.y, zone: z });
   }
-  // And every person gets two crates of their own nearby, so the bots can't take everything.
+  // And every person gets a crate of their own nearby, so the bots can't take everything.
+  // It's something another player's order needs, so it's worth trading.
   for (const p of s.players) {
     if (p.bot || !p.connected || p.brig || s.phase !== "play") continue;
-    if (s.crates.filter((c) => c.owner === p.id).length >= 4) continue;
-    const need = p.order && !p.order.done ? SUPPLIES.filter((k) => (p.order!.want[k] ?? 0) > (p.order!.got[k] ?? 0)) : [];
-    const kinds: Supply[] = [need[0] ?? SUPPLIES[Math.floor(rng() * 3)], SUPPLIES[Math.floor(rng() * 3)]];
+    if (s.crates.filter((c) => c.owner === p.id).length >= 3) continue;
+    const kind = tradeBait(s, p, rng);
     const base = outdoorPos(p.x, p.y);
-    for (const kind of kinds) {
-      const spot = spotNear(base.x, base.y, g, rng);
-      if (spot) s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: zoneAt(spot.x, spot.y) ?? "dropped", owner: p.id });
-    }
+    const spot = spotNear(base.x, base.y, g, rng);
+    if (spot) s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: zoneAt(spot.x, spot.y) ?? "dropped", owner: p.id });
   }
   // Pearls wash up wherever the land is still dry.
   const dry = ZONE_IDS.filter((z) => z !== "caves" && z !== "hotel" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.3) <= 0);
@@ -578,18 +579,28 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
   s.version++;
 }
 
-/** What each building holds, restocked at the start of every tide while it stays dry. */
+/** What a person's own crate holds: a supply someone else's order wants and theirs doesn't. */
+function tradeBait(s: GameState, p: Player, rng: Rng): Supply {
+  const wants = (q: Player) => (q.order && !q.order.done ? SUPPLIES.filter((k) => (q.order!.want[k] ?? 0) > (q.order!.got[k] ?? 0)) : []);
+  const mine = wants(p);
+  const theirs = s.players.filter((q) => q.id !== p.id).flatMap(wants).filter((k) => !mine.includes(k));
+  const pool = theirs.length ? theirs : SUPPLIES.filter((k) => !mine.includes(k));
+  return (pool.length ? pool : SUPPLIES)[Math.floor(rng() * (pool.length || 3))];
+}
+
+/** What each building holds: one thing, restocked every other tide while it stays dry. */
 const INDOORS: Record<BuildingId, (tide: number, rng: Rng) => Kind[]> = {
-  hospital: () => ["medicine", "medicine"],
-  palace: (t) => (t === 1 ? ["compass", "diamond"] : t % 2 ? ["diamond", "fuel"] : ["fuel"]),
-  hotel: (t) => (t % 2 ? ["tools"] : ["tools", "diamond"]),
+  hospital: () => ["medicine"],
+  palace: (t) => (t === 1 ? ["compass"] : ["diamond"]),
+  hotel: (t) => (t === 3 ? ["diamond"] : ["tools"]),
   lighthouse: () => ["fuel"],
   stables: () => ["tools"],
-  shipwreck: () => ["fuel", "diamond", "tools"],
+  shipwreck: () => ["diamond"],
   market: (_t, rng) => [SUPPLIES[Math.floor(rng() * 3)]],
 };
 
 function stockBuildings(s: GameState, rng: Rng, level: number) {
+  if (s.tide % 2 === 0) return;
   for (const b of BUILDINGS) {
     if (s.closed.includes(b.id) || !buildingOpen(b, level)) continue;
     const free = b.spots.filter((sp) => !s.crates.some((c) => dist(c.x, c.y, sp.x, sp.y) < 24));
@@ -799,7 +810,6 @@ function loadAll(s: GameState, p: Player) {
   let spare = 0;
   for (const item of [...p.carry]) {
     if (item.kind === "cutlass") continue; // you keep your weapon
-    if (slotsUsed(s.hold) + KIND_INFO[item.kind].slots > capacityOf(s)) continue;
     if (!worthLoading(s, item.kind)) continue;
     const isSpare = SUPPLIES.includes(item.kind as Supply) && suppliesIn(s.hold)[item.kind as Supply] >= needsFor(s)[item.kind as Supply];
     p.carry = p.carry.filter((c) => c.id !== item.id);
@@ -820,20 +830,15 @@ function loadAll(s: GameState, p: Player) {
     }
   }
   if (loaded.length) {
-    p.pearls += spare;
+    p.pearls += spare * SPARE_PEARLS;
     fx(s, "load", GANGWAY.x, GANGWAY.y, p.id);
-    log(s, `${p.name} loaded ${loaded.join(", ")}${spare ? ` (+${spare} pearl${spare > 1 ? "s" : ""} for spares)` : ""}.`, "load");
+    log(s, `${p.name} loaded ${loaded.join(", ")}${spare ? ` (+${spare * SPARE_PEARLS} pearls for spares)` : ""}.`, "load");
   }
 }
 
 /** The hold keeps room for what the crossing still needs. */
-export function worthLoading(s: GameState, kind: Kind) {
-  if (kind === "cutlass") return false;
-  const need = needsFor(s);
-  const have = suppliesIn(s.hold);
-  if (SUPPLIES.includes(kind as Supply) && have[kind as Supply] < need[kind as Supply]) return true;
-  const stillNeeded = SUPPLIES.reduce((t, k) => t + Math.max(0, need[k] - have[k]), 0);
-  return capacityOf(s) - slotsUsed(s.hold) - KIND_INFO[kind].slots >= stillNeeded;
+export function worthLoading(_s: GameState, kind: Kind) {
+  return kind !== "cutlass";
 }
 
 function sail(s: GameState, now: number, early: boolean) {

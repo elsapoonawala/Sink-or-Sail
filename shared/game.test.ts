@@ -141,7 +141,7 @@ describe("crates, pearls and the cutlass", () => {
     expect(s.spawnedPart).toBe(0);
   });
 
-  it("pays a pearl for each spare supply loaded", () => {
+  it("never fills up, and pays pearls for each spare supply loaded", () => {
     const s = game(1);
     const me = player(s, "p0")!;
     for (let i = 0; i < NEEDS.fuel; i++) s.hold.push({ id: `h${i}`, kind: "fuel", owner: "p0" });
@@ -151,7 +151,7 @@ describe("crates, pearls and the cutlass", () => {
     me.y = GANGWAY.y;
     tick(s, 1_000_100, seeded());
     expect(me.carry).toHaveLength(0);
-    expect(me.pearls).toBe(before + 1);
+    expect(me.pearls).toBe(before + 2);
   });
 
   it("knocks a player out with a cutlass and spills their cargo", () => {
@@ -193,11 +193,13 @@ describe("crates, pearls and the cutlass", () => {
     expect(b.order).toBe(bOrder); // unfinished orders carry over
   });
 
-  it("puts crates with your name near you that only you can pick up", () => {
+  it("puts crates with your name near you that only you can pick up, holding what others need", () => {
     const s = game(2);
     const [person, bot] = s.players;
     const mine = s.crates.filter((c) => c.owner === person.id);
     expect(mine.length).toBeGreaterThanOrEqual(2);
+    const myOrder = person.order!.want;
+    for (const c of mine) expect(myOrder[c.kind as keyof typeof myOrder] ?? 0).toBe(0);
     expect(s.crates.some((c) => c.owner === bot.id)).toBe(false);
     bot.x = mine[0].x;
     bot.y = mine[0].y;
@@ -239,7 +241,7 @@ describe("buildings", () => {
     const me = player(s, "p0")!;
     const hospital = BUILDING.hospital;
     const inside = s.crates.filter((c) => buildingAt(c.x, c.y) === hospital);
-    expect(inside.map((c) => c.kind)).toEqual(["medicine", "medicine"]);
+    expect(inside.map((c) => c.kind)).toEqual(["medicine"]);
     expect(enterBuilding(s, "p0", 1_000_100)).toBe("Walk up to a door first.");
     Object.assign(me, { x: hospital.door.x, y: hospital.door.y });
     expect(enterBuilding(s, "p0", 1_000_100)).toBeNull();

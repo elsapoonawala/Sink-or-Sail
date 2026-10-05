@@ -44,7 +44,7 @@ export function End({ v }: { v: GameView }) {
           <rect y="150" width="800" height="110" fill="url(#g-sea)" />
           <rect y="160" width="800" height="100" fill="url(#p-waves)" opacity=".3" />
           <path className="sinking-island" d="M-40 160 C0 120 60 110 120 130 C150 140 170 150 190 160 Z" fill="#2c6b4a" />
-          <g className="sail-path"><g transform="translate(0 112) scale(.8)"><Ferry fill={Math.min(1, v.slots / v.capacity)} sailing /></g></g>
+          <g className="sail-path"><g transform="translate(0 112) scale(.8)"><Ferry fill={Math.min(1, (Math.min(v.supplies.fuel, v.needs.fuel) + Math.min(v.supplies.medicine, v.needs.medicine) + Math.min(v.supplies.tools, v.needs.tools)) / (v.needs.fuel + v.needs.medicine + v.needs.tools))} sailing /></g></g>
           {r.success && <path className="far-shore" d="M700 160 C730 140 780 136 820 140 L820 160Z" fill="#3f8a5a" />}
         </svg>
       </div>

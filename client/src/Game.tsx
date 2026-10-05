@@ -152,17 +152,15 @@ export function Game({ v }: { v: GameView }) {
   const mine = v.crates.some((c) => c.owner === v.you);
   const orderTip = !orderNeed.length
     ? ""
-    : mine
-      ? `Your order needs ${orderNeed.join(" and ")}. Crates with your name are waiting nearby: follow the gold pointers.`
-      : holder
-        ? `Your order needs ${orderNeed.join(" and ")}. ${holder.name} is carrying some: tap Trade to make an offer.`
+    : holder
+      ? `Your order needs ${orderNeed.join(" and ")}. ${holder.name} is carrying some: tap Trade to make an offer.`
+      : mine
+        ? `Your order needs ${orderNeed.join(" and ")}. Grab the crates with your name: others need them, so trade them for what you need.`
         : `Your order needs ${orderNeed.join(" and ")}. Find glowing crates, or trade for them.`;
   const swimmingNow = !me.mounted && swimming(pos.x, pos.y, { level: seaLevel(v.tide, v.tideStartedAt, v.totalTides, now), secretFound: v.secretFound, caveOpen: v.caveOpen });
   const full = me.carry.length >= carryLimit(me);
-  const holdFull = v.slots >= v.capacity;
   const short = SUPPLIES.filter((k) => v.supplies[k] < v.needs[k]);
-  const stillNeeded = short.reduce((t, k) => t + v.needs[k] - v.supplies[k], 0);
-  const blocked = me.carry.length > 0 && nearGangway(pos) && me.carry.every((c) => c.kind === "cutlass" || !(SUPPLIES.includes(c.kind as Supply) && v.supplies[c.kind as Supply] < v.needs[c.kind as Supply]) && v.capacity - v.slots - KIND_INFO[c.kind].slots < stillNeeded);
+  const onlyBlade = me.carry.length > 0 && nearGangway(pos) && me.carry.every((c) => c.kind === "cutlass");
   let hint = "";
   if (me.brig) hint = "You're locked in the ferry's brig. You'll sail, but you can't help or hinder.";
   else if (down) hint = `Knocked out! You're back on your feet in ${Math.ceil((me.downUntil - now) / 1000)}s.`;
@@ -172,9 +170,7 @@ export function Game({ v }: { v: GameView }) {
   else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
   else if (v.sailAt) hint = `The ferry sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";
-  else if (me.carry.length && nearGangway(pos) && holdFull) hint = "The hold is full. Trade or drop what you carry.";
-  else if (blocked && me.carry.every((c) => c.kind === "cutlass")) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
-  else if (blocked) hint = `The hold is saving its last space for the ${stillNeeded} supplies still needed. Bring those first.`;
+  else if (onlyBlade) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
   else if (full) hint = "Hands full. Follow the gold arrow to the ferry and step onto the LOAD HERE circle.";
   else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the ferry. Your crates go in by themselves.";
   else if (orderTip) hint = orderTip;
@@ -218,10 +214,6 @@ export function Game({ v }: { v: GameView }) {
             <b>{v.supplies[k]}/{v.needs[k]}</b>
           </div>
         ))}
-        <div className={`gauge slots ${holdFull ? "full" : ""}`} title="Space in the hold">
-          <span className="slot-icon" aria-hidden="true">▦</span>
-          <b>{v.slots}/{v.capacity}</b>
-        </div>
       </section>
 
       {/* top right: map and menu */}
