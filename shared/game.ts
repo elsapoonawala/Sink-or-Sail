@@ -29,6 +29,8 @@ export const WALK_SPEED = 150;
 export const RIDE_SPEED = 265;
 export const CARTO_SPEED = 330;
 export const PICKUP_R = 30;
+/** An unanswered trade offer lapses after this long. */
+export const OFFER_MS = 20_000;
 export const TRADE_R = 110;
 export const BARTER_COST = 3;
 export const DUMP_COOLDOWN = 45_000;
@@ -728,6 +730,14 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
         log(s, `${p.name} turned the compass in the cave door. The Sapphire Caves are open.`, "info");
       }
     }
+    // Offers nobody answers fade away after a while.
+    for (const o of s.offers) {
+      if (o.status === "open" && now - o.at > OFFER_MS) {
+        o.status = "cancelled";
+        s.version++;
+      }
+    }
+    if (s.offers.length > 40) s.offers = s.offers.filter((o) => o.status === "open" || now - o.at < 60_000);
     if (s.vote && s.vote.outcome === "open") settleVote(s, now, false);
     // Enough people ready on the pier: start the countdown.
     const ready = s.players.filter((p) => p.ready || p.brig).length;

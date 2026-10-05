@@ -771,3 +771,11 @@ kbd { display: inline-grid; place-items: center; width: 40px; height: 40px; bord
 .quick-rules li p { font-size: 15px; margin: 0; }
 .rules .quick-foot { font-size: 13px; opacity: 0.8; }
 .rules > .btn { justify-self: start; }
+
+/* Phones: keep the island clear. The hint line does the guiding, offers stay compact. */
+@media (max-width: 720px) {
+  .first-steps { display: none; }
+  .hud-offers .offer { padding: 8px 10px; }
+  .hud-offers .offer p { font-size: 13px; margin-bottom: 6px; }
+  .hud-offers .offers { gap: 6px; }
+}

@@ -94,7 +94,7 @@ export function Game({ v }: { v: GameView }) {
   }, [myHold.length]);
   // The intro card shows your character, then gets out of the way.
   useEffect(() => {
-    const t = setTimeout(() => setIntro(false), 14000);
+    const t = setTimeout(() => setIntro(false), window.matchMedia("(max-width: 720px)").matches ? 6000 : 14000);
     return () => clearTimeout(t);
   }, [v.round]);
 
@@ -182,6 +182,8 @@ export function Game({ v }: { v: GameView }) {
   else hint = "Supplies are aboard! Grab treasure, then gather on the pier and call Ready.";
 
   const lampOn = now < v.lampUntil;
+  // Phones show only urgent news; everything else lives in the hint line.
+  const phone = typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches;
   const myItems = me.carry;
 
   return (
@@ -237,7 +239,7 @@ export function Game({ v }: { v: GameView }) {
 
       {/* feed: recent news, fading out after a few seconds */}
       <ol className="hud-feed" aria-live="polite">
-        {v.log.slice(-3).filter((l) => now - seen(l.n) < 9000).map((l) => <li key={l.n} className={`log-${l.kind}`}>{l.text}</li>)}
+        {v.log.slice(-3).filter((l) => now - seen(l.n) < (phone ? 4500 : 9000) && (!phone || l.kind === "flood" || l.kind === "alert")).map((l) => <li key={l.n} className={`log-${l.kind}`}>{l.text}</li>)}
       </ol>
 
       {/* banners */}

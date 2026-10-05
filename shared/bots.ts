@@ -254,6 +254,8 @@ function proposeTrade(s: GameState, p: Player, b: Brain, now: number, rng: Rng):
   if (s.offers.some((o) => o.from === p.id && o.status === "open")) return false;
   for (const q of s.players) {
     if (q.id === p.id || q.brig || dist(p, q) > 450) continue;
+    // Don't pester people: one bot offer at a time, and at most one every 45 seconds.
+    if (!q.bot && s.offers.some((o) => o.to === q.id && (o.status === "open" || (now - o.at < 45_000 && s.players.find((x) => x.id === o.from)?.bot)))) continue;
     const want = q.carry.find((c) => orderNeeds(p, c.kind) > 0);
     if (!want) continue;
     const spare = cargo(p).find((c) => SUPPLIES.includes(c.kind as Supply) && !orderNeeds(p, c.kind) && c.kind !== want.kind);

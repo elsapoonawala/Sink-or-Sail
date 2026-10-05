@@ -99,7 +99,10 @@ function gives(o: Offer) {
 
 export function OffersTray({ v }: { v: GameView }) {
   const name = (id: string) => v.players.find((p) => p.id === id)?.name ?? "Someone";
-  const incoming = v.offers.filter((o) => o.to === v.you && o.status === "open");
+  // Only the newest offer is shown, so offers never pile up over the island.
+  const open = v.offers.filter((o) => o.to === v.you && o.status === "open");
+  const incoming = open.slice(-1);
+  const more = open.length - incoming.length;
   const outgoing = v.offers.filter((o) => o.from === v.you && o.status === "open");
   if (!incoming.length && !outgoing.length) return null;
   return (
@@ -110,10 +113,11 @@ export function OffersTray({ v }: { v: GameView }) {
           <div className="row gap">
             <button className="btn primary small" onClick={async () => { if (!(await act({ type: "respond", offerId: o.id, accept: true }))) sfx.trade(); }}>Accept</button>
             <button className="btn ghost small" onClick={() => act({ type: "respond", offerId: o.id, accept: false })}>Decline</button>
+            {more > 0 && <span className="small muted">+{more} more</span>}
           </div>
         </div>
       ))}
-      {outgoing.map((o) => (
+      {outgoing.slice(-1).map((o) => (
         <div key={o.id} className="offer outgoing">
           <p>Waiting for <b>{name(o.to)}</b> to answer.</p>
           <button className="btn ghost small" onClick={() => act({ type: "cancel", offerId: o.id })}>Cancel</button>
