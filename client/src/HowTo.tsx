@@ -71,7 +71,7 @@ const SLIDES = [
 ];
 
 const QUICK: { icon: string; text: React.ReactNode }[] = [
-  { icon: "📦", text: <>Walk into glowing crates to pick them up. The ones with <b>your name</b> are only for you.</> },
+  { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>. The ones with <b>your name</b> are only for you.</> },
   { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by the ferry to load them.</> },
   { icon: "🎯", text: <>Fill the ferry: <b>8 fuel, 6 medicine, 5 tools</b> before the last tide.</> },
   { icon: "💎", text: <>Get rich: pearls, diamonds, and your secret order. <b>Trade</b> with anyone, any time.</> },
@@ -129,6 +129,7 @@ function FullRules() {
           <li>The hold has 30 spaces (quick game: 16), and a diamond takes 2 of them. The hold always keeps room for supplies the ferry still needs.</li>
           <li>About 18 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
           <li>Every wave also puts <b>2 crates with your name</b> on them near you. Only you can pick those up. Gold pointers at the edge of the screen lead to the nearest crates.</li>
+          <li>Seven buildings have a glowing doorstep: the Hospital (by the gardens), the Palace, the Grand Hotel, the Lighthouse, the Royal Stables, the Shipwreck and the Pearl Market Shop. Tap <b>Enter</b> at the door to go in and pick up what's inside, and <b>Go outside</b> to leave. They restock every tide. When the sea reaches a door, that building floods and closes for good. Bots never go inside.</li>
           <li>Bots carry at most 2 crates, move a little slower than people, and leave alone crates that you're close to.</li>
         </ul>
       </section>

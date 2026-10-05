@@ -155,6 +155,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     if (claimed.has(c.id) && b.goal?.kind === "crate" && b.goal.id !== c.id) continue;
     if (claimed.has(c.id) && b.goal?.kind !== "crate") continue;
     if (c.zone === "cave" && !s.caveOpen) continue;
+    if (c.zone === "indoors") continue; // bots stay outdoors: what's inside buildings is for people
     if (c.owner && c.owner !== p.id) continue;
     if (footing(c.x, c.y, g) <= 0) continue;
     if (savedForPeople(s, p, c, now)) continue;

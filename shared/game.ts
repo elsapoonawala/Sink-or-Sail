@@ -4,7 +4,8 @@
 
 import {
   CAVE, CAVE_DOOR, DIVE_SPOTS, DOCK, GANGWAY, LAMP, MARKET_STALL, QUICK_TIDE_MS, STABLE_POS, TIDE_MS,
-  H, W, ZONES, ZONE_IDS, type Ground, type ZoneId, depthAt, footing, nearestFooting, onDock, seaLevel, zoneAt,
+  BUILDINGS, H, W, ZONES, ZONE_IDS, type Building, type BuildingId, type Ground, type ZoneId, buildingAt, buildingOpen, depthAt,
+  footing, insideDoor, nearestFooting, onDock, outdoorPos, seaLevel, zoneAt,
 } from "./world";
 
 export type Supply = "fuel" | "medicine" | "tools";
@@ -74,7 +75,7 @@ export interface Item {
 export interface Crate extends Item {
   x: number;
   y: number;
-  zone: ZoneId | "cave" | "dropped";
+  zone: ZoneId | "cave" | "dropped" | "indoors";
   /** Pearls tucked inside, found when it's picked up. */
   bonus?: number;
   /** A crate washed up for one player: only they can pick it up. */
@@ -213,6 +214,8 @@ export interface GameState {
   diveReady: number[];
   /** How many of this tide's crate waves have washed up. */
   spawnedPart: number;
+  /** Buildings the sea has reached; they stay shut. */
+  closed: BuildingId[];
   log: LogEntry[];
   fx: Fx[];
   result: Result | null;
@@ -311,16 +314,26 @@ export function nearGangway(p: { x: number; y: number }) {
   return dist(p.x, p.y, GANGWAY.x, GANGWAY.y) < GANGWAY.r;
 }
 
+/** Inside a building, the lamp, the saddles and the shop counter work like the ones outside. */
+function atStation(p: { x: number; y: number }, kind: "lamp" | "saddle" | "counter") {
+  return BUILDINGS.some((b) => b.station?.kind === kind && dist(p.x, p.y, b.station.x, b.station.y) < 75);
+}
+
 export function nearStables(p: { x: number; y: number }) {
-  return dist(p.x, p.y, STABLE_POS.x, STABLE_POS.y) < 80;
+  return dist(p.x, p.y, STABLE_POS.x, STABLE_POS.y) < 80 || atStation(p, "saddle");
 }
 
 export function nearStall(p: { x: number; y: number }) {
-  return dist(p.x, p.y, MARKET_STALL.x, MARKET_STALL.y) < 70;
+  return dist(p.x, p.y, MARKET_STALL.x, MARKET_STALL.y) < 70 || atStation(p, "counter");
 }
 
 export function nearLamp(p: { x: number; y: number }) {
-  return dist(p.x, p.y, LAMP.x, LAMP.y) < 60;
+  return dist(p.x, p.y, LAMP.x, LAMP.y) < 60 || atStation(p, "lamp");
+}
+
+/** The building whose door you're standing at, if any. */
+export function nearDoor(p: { x: number; y: number }): Building | null {
+  return BUILDINGS.find((b) => dist(p.x, p.y, b.door.x, b.door.y) < 70) ?? null;
 }
 
 export function nearDive(p: { x: number; y: number }): number {
@@ -357,6 +370,7 @@ export function createGame(code: string, hostId: string): GameState {
     marketStock: 0,
     diveReady: DIVE_SPOTS.map(() => 0),
     spawnedPart: 0,
+    closed: [],
     log: [],
     fx: [],
     result: null,
@@ -427,6 +441,7 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   s.secretFound = false;
   s.caveOpen = false;
   s.diveReady = DIVE_SPOTS.map(() => 0);
+  s.closed = [];
   s.log = [];
   s.fx = [];
   s.result = null;
@@ -482,7 +497,7 @@ function dealOrders(s: GameState, rng: Rng) {
 /** What turns up in each place, by tide: about eight supplies, two diamonds and the odd
  *  cutlass a tide. Low places get theirs early, so they're worth raiding before they drown. */
 const SPAWNS: Partial<Record<ZoneId, Kind[]>>[] = [
-  { harbour: ["fuel", "tools"], shipwreck: ["diamond", "fuel", "medicine"], coves: ["medicine", "tools", "diamond"], gardens: ["fuel"], palace: ["compass"], market: ["tools"], lighthouse: ["cutlass"] },
+  { harbour: ["fuel", "tools"], shipwreck: ["diamond", "fuel", "medicine"], coves: ["medicine", "tools", "diamond"], gardens: ["fuel"], market: ["tools"], lighthouse: ["cutlass"] },
   { coves: ["fuel", "diamond", "medicine"], harbour: ["medicine", "tools"], market: ["fuel", "cutlass"], stables: ["tools"], gardens: ["medicine"], hotel: ["diamond", "fuel"] },
   { market: ["fuel", "medicine", "diamond"], gardens: ["tools", "medicine"], lighthouse: ["fuel", "diamond"], hotel: ["tools"], palace: ["fuel"], stables: ["cutlass", "medicine"] },
   { gardens: ["medicine", "fuel", "diamond"], hotel: ["fuel", "tools", "medicine"], palace: ["medicine", "diamond", "cutlass"], stables: ["tools"], lighthouse: ["fuel"] },
@@ -536,8 +551,9 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
     if (s.crates.filter((c) => c.owner === p.id).length >= 4) continue;
     const need = p.order && !p.order.done ? SUPPLIES.filter((k) => (p.order!.want[k] ?? 0) > (p.order!.got[k] ?? 0)) : [];
     const kinds: Supply[] = [need[0] ?? SUPPLIES[Math.floor(rng() * 3)], SUPPLIES[Math.floor(rng() * 3)]];
+    const base = outdoorPos(p.x, p.y);
     for (const kind of kinds) {
-      const spot = spotNear(p.x, p.y, g, rng);
+      const spot = spotNear(base.x, base.y, g, rng);
       if (spot) s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: zoneAt(spot.x, spot.y) ?? "dropped", owner: p.id });
     }
   }
@@ -548,13 +564,70 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
     const spot = randomSpot(dry[Math.floor(rng() * dry.length)], g, rng);
     if (spot) s.piles.push({ id: nid(s, "g"), x: spot.x, y: spot.y, n: 1 + Math.floor(rng() * 3) });
   }
-  if (part === 0) s.marketStock = 3;
+  if (part === 0) {
+    s.marketStock = 3;
+    stockBuildings(s, rng, g.level);
+  }
   const names = [...places];
   if (names.length) {
     fx(s, "wave", 0, 0);
     log(s, `Fresh crates washed up at ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]}.`, "info");
   }
   s.version++;
+}
+
+/** What each building holds, restocked at the start of every tide while it stays dry. */
+const INDOORS: Record<BuildingId, (tide: number, rng: Rng) => Kind[]> = {
+  hospital: () => ["medicine", "medicine"],
+  palace: (t) => (t === 1 ? ["compass", "diamond"] : t % 2 ? ["diamond", "fuel"] : ["fuel"]),
+  hotel: (t) => (t % 2 ? ["tools"] : ["tools", "diamond"]),
+  lighthouse: () => ["fuel"],
+  stables: () => ["tools"],
+  shipwreck: () => ["fuel", "diamond", "tools"],
+  market: (_t, rng) => [SUPPLIES[Math.floor(rng() * 3)]],
+};
+
+function stockBuildings(s: GameState, rng: Rng, level: number) {
+  for (const b of BUILDINGS) {
+    if (s.closed.includes(b.id) || !buildingOpen(b, level)) continue;
+    const free = b.spots.filter((sp) => !s.crates.some((c) => dist(c.x, c.y, sp.x, sp.y) < 24));
+    for (const kind of INDOORS[b.id](s.tide, rng)) {
+      // The compass only turns up once.
+      if (kind === "compass" && (s.crates.some((c) => c.kind === "compass") || s.players.some((p) => p.carry.some((c) => c.kind === "compass")) || s.hold.some((c) => c.kind === "compass"))) continue;
+      const sp = free.shift();
+      if (!sp) break;
+      s.crates.push({ id: nid(s, "c"), kind, x: sp.x, y: sp.y, zone: "indoors" });
+    }
+    if ((b.id === "market" || b.id === "hotel") && !s.piles.some((pl) => buildingAt(pl.x, pl.y) === b)) {
+      const r = b.room;
+      s.piles.push({ id: nid(s, "g"), x: r.x1 + (r.x2 - r.x1) * 0.75, y: r.y1 + (r.y2 - r.y1) * 0.66, n: 2 });
+    }
+  }
+}
+
+/** Step inside the building whose door you're at. */
+export function enterBuilding(s: GameState, pid: string, now: number): string | null {
+  const p = player(s, pid);
+  if (!p || s.phase !== "play" || p.brig || now < p.downUntil) return null;
+  const b = nearDoor(p);
+  if (!b) return "Walk up to a door first.";
+  if (s.closed.includes(b.id) || !buildingOpen(b, levelNow(s, now))) return `The sea has flooded ${b.name}.`;
+  const at = insideDoor(b);
+  Object.assign(p, { x: at.x, y: at.y, dir: -Math.PI / 2, moving: false, lastMoveAt: now });
+  s.version++;
+  return null;
+}
+
+/** Go back out through the door. */
+export function leaveBuilding(s: GameState, pid: string, now: number): string | null {
+  const p = player(s, pid);
+  if (!p || s.phase !== "play" || p.brig) return null;
+  const b = buildingAt(p.x, p.y);
+  if (!b) return null;
+  const at = nearestFooting(b.door.x, b.door.y + 26, ground(s, now));
+  Object.assign(p, { x: at.x, y: at.y, dir: Math.PI / 2, moving: false, lastMoveAt: now });
+  s.version++;
+  return null;
 }
 
 /** Somewhere dry a short walk from (x, y). */
@@ -616,6 +689,21 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
     });
     if (s.crates.length !== before) s.version++;
     s.piles = s.piles.filter((p) => depthAt(p.x, p.y, g.level) < 0.3 || dist(p.x, p.y, CAVE.x, CAVE.y) < CAVE.r);
+    // When the sea reaches a door, the building floods: everything inside is lost, people wash out.
+    for (const b of BUILDINGS) {
+      if (s.closed.includes(b.id) || buildingOpen(b, g.level)) continue;
+      s.closed.push(b.id);
+      s.crates = s.crates.filter((c) => buildingAt(c.x, c.y) !== b);
+      s.piles = s.piles.filter((pl) => buildingAt(pl.x, pl.y) !== b);
+      for (const p of s.players) {
+        if (buildingAt(p.x, p.y) !== b) continue;
+        const to = nearestFooting(b.door.x, b.door.y, g);
+        p.x = to.x;
+        p.y = to.y;
+        fx(s, "swept", p.x, p.y, p.id);
+      }
+      log(s, `The sea poured into ${b.name}. It's closed for good.`, "flood");
+    }
     for (const p of s.players) {
       if (p.brig) continue;
       if (footing(p.x, p.y, g) <= 0) {
@@ -666,7 +754,8 @@ export function savedForPeople(s: GameState, p: Player, c: { x: number; y: numbe
   if (!p.bot || p.wrecker || s.endsAt - now < s.tideMs) return false;
   return s.players.some((q) => {
     if (q.bot || !q.connected || q.brig) return false;
-    const d = dist(q.x, q.y, c.x, c.y);
+    const at = outdoorPos(q.x, q.y);
+    const d = dist(at.x, at.y, c.x, c.y);
     return d < 550 || d < dist(p.x, p.y, c.x, c.y);
   });
 }
@@ -692,7 +781,7 @@ function collect(s: GameState, p: Player, now: number) {
   fx(s, "pickup", c.x, c.y, p.id, c.kind);
   if (c.kind === "cutlass") log(s, `${p.name} picked up a cutlass.`, "alert");
   if (c.kind === "compass") log(s, `${p.name} found the Antique Compass.`, "info");
-  if (c.kind === "diamond" && c.zone !== "dropped") log(s, `${p.name} found a diamond at ${c.zone === "cave" ? "the Sapphire Caves" : ZONES[c.zone as ZoneId].name}.`, "info");
+  if (c.kind === "diamond" && c.zone !== "dropped") log(s, `${p.name} found a diamond ${c.zone === "cave" ? "at the Sapphire Caves" : c.zone === "indoors" ? `in ${buildingAt(c.x, c.y)?.name ?? "a building"}` : `at ${ZONES[c.zone as ZoneId].name}`}.`, "info");
 }
 
 function loadAll(s: GameState, p: Player) {
@@ -1113,6 +1202,7 @@ export interface GameView {
   lampTide: number;
   secretFound: boolean;
   caveOpen: boolean;
+  closed: BuildingId[];
   marketStock: number;
   diveReady: number[];
   spawnedPart: number;
@@ -1165,6 +1255,7 @@ export function viewFor(s: GameState, pid: string): GameView {
     lampTide: s.lampTide,
     secretFound: s.secretFound,
     caveOpen: s.caveOpen,
+    closed: s.closed,
     marketStock: s.marketStock,
     diveReady: s.diveReady,
     spawnedPart: s.spawnedPart,

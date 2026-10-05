@@ -56,6 +56,8 @@ export type ClientAction =
   | { type: "dump" }
   | { type: "ready"; ready?: boolean }
   | { type: "strike"; target: string }
+  | { type: "enter" }
+  | { type: "leave" }
   | { type: "accuse"; target: string }
   | { type: "vote"; yes: boolean }
   | { type: "offer"; to: string; give: { itemIds: string[]; pearls: number }; want: { kinds: Record<string, number>; pearls: number } }

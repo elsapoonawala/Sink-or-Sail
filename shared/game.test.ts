@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   type GameState, addPlayer, accuse, castVote, createGame, makeOffer, moveTo, needsFor, player, respondOffer,
-  setReady, startGame, strike, tick, viewFor, KNOCKOUT_MS, NEEDS, SAIL_COUNTDOWN, WAVES,
+  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, NEEDS, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
-import { DOCK, GANGWAY, ZONES, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
+import { BUILDING, BUILDINGS, DOCK, GANGWAY, ZONES, buildingAt, buildingOpen, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
 
 const PIER_SPOT = { x: (DOCK.x1 + DOCK.x2) / 2, y: DOCK.y1 + 60 };
 
@@ -227,6 +227,58 @@ describe("crates, pearls and the cutlass", () => {
   });
 });
 
+describe("buildings", () => {
+  it("every door is dry at the start, and only the low ones flood", () => {
+    for (const b of BUILDINGS) expect(buildingOpen(b, 0)).toBe(true);
+    expect(buildingOpen(BUILDING.shipwreck, tideLevel(2, 5))).toBe(false);
+    expect(buildingOpen(BUILDING.palace, tideLevel(5, 5))).toBe(true);
+  });
+
+  it("lets you walk in at the door, pick up what's inside, and walk out", () => {
+    const s = game(2);
+    const me = player(s, "p0")!;
+    const hospital = BUILDING.hospital;
+    const inside = s.crates.filter((c) => buildingAt(c.x, c.y) === hospital);
+    expect(inside.map((c) => c.kind)).toEqual(["medicine", "medicine"]);
+    expect(enterBuilding(s, "p0", 1_000_100)).toBe("Walk up to a door first.");
+    Object.assign(me, { x: hospital.door.x, y: hospital.door.y });
+    expect(enterBuilding(s, "p0", 1_000_100)).toBeNull();
+    expect(buildingAt(me.x, me.y)).toBe(hospital);
+    const tx = inside[0].x;
+    const ty = inside[0].y + 20;
+    expect(moveTo(s, "p0", (me.x + tx) / 2, (me.y + ty) / 2, 0, true, 1_001_000)).toBe(true);
+    expect(moveTo(s, "p0", tx, ty, 0, true, 1_002_000)).toBe(true);
+    tick(s, 1_002_000, seeded());
+    expect(me.carry.map((c) => c.kind)).toEqual(["medicine"]);
+    expect(leaveBuilding(s, "p0", 1_002_100)).toBeNull();
+    expect(buildingAt(me.x, me.y)).toBeNull();
+    expect(Math.hypot(me.x - hospital.door.x, me.y - hospital.door.y)).toBeLessThan(80);
+  });
+
+  it("keeps the compass in the palace and walls you in", () => {
+    const s = game(1);
+    const palace = BUILDING.palace;
+    expect(s.crates.some((c) => c.kind === "compass" && buildingAt(c.x, c.y) === palace)).toBe(true);
+    const g = { level: 0, secretFound: false, caveOpen: false };
+    expect(footing(palace.room.x1 + 5, palace.room.y1 + 200, g)).toBe(0);
+    expect(footing((palace.room.x1 + palace.room.x2) / 2, (palace.room.y1 + palace.room.y2) / 2, g)).toBe(1);
+  });
+
+  it("floods the shipwreck hold at the second tide and washes people out", () => {
+    const s = game(1);
+    const me = player(s, "p0")!;
+    Object.assign(me, { x: BUILDING.shipwreck.door.x, y: BUILDING.shipwreck.door.y });
+    expect(enterBuilding(s, "p0", 1_000_100)).toBeNull();
+    const t2 = s.tideStartedAt + s.tideMs + 20_000;
+    tick(s, t2, seeded());
+    expect(s.closed).toContain("shipwreck");
+    expect(buildingAt(me.x, me.y)).toBeNull();
+    expect(s.crates.some((c) => buildingAt(c.x, c.y) === BUILDING.shipwreck)).toBe(false);
+    Object.assign(me, { x: BUILDING.shipwreck.door.x, y: BUILDING.shipwreck.door.y });
+    expect(enterBuilding(s, "p0", t2 + 100)).toMatch(/flooded/);
+  });
+});
+
 describe("bots", () => {
   it("load the ferry on their own", () => {
     const s = game(4);
@@ -240,5 +292,7 @@ describe("bots", () => {
       tick(s, now, rng);
     }
     expect(s.hold.length).toBeGreaterThan(3);
+    // Bots never go indoors.
+    for (const p of s.players) if (p.bot) expect(buildingAt(p.x, p.y)).toBeNull();
   });
 });

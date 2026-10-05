@@ -4,7 +4,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import {
   type GameState, type Offer, type Role, type Supply,
   accuse, addPlayer, barter, cancelOffer, castVote, chooseRole, createGame, dive, dropItem, dump, lightLamp,
-  makeOffer, moveTo, player, removePlayer, respondOffer, setReady, startGame, strike, tick, toggleMount, viewFor, MAX_PLAYERS,
+  makeOffer, moveTo, player, removePlayer, respondOffer, setReady, startGame, strike, tick, toggleMount, enterBuilding, leaveBuilding, viewFor, MAX_PLAYERS,
 } from "../shared/game";
 import { BOT_NAMES, type Brain, botTick, newBrain } from "../shared/bots";
 import type { ChatMessage, ClientAction, PosMessage, SignalKey, VoiceState } from "../shared/protocol";
@@ -235,6 +235,15 @@ export class Rooms {
       case "strike":
         err = strike(s, pid, a.target, Date.now());
         break;
+      case "enter":
+      case "leave": {
+        err = a.type === "enter" ? enterBuilding(s, pid, Date.now()) : leaveBuilding(s, pid, Date.now());
+        // A step through a door is a jump, so tell the player's device where they are now.
+        const p = player(s, pid);
+        const sock = room.sockets.get(pid);
+        if (!err && p && sock) this.io.toSocket(sock, "snap", { x: p.x, y: p.y });
+        break;
+      }
       case "ready":
         err = setReady(s, pid, a.ready !== false);
         break;

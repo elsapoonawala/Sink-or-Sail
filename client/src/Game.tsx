@@ -2,9 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   type GameView, type Order, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES,
-  carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
+  carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
 } from "../../shared/game";
-import { GANGWAY, ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
+import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
 import { ChatPanel, SignalBar } from "./Comms";
 import { Rules } from "./HowTo";
@@ -19,9 +19,25 @@ import { MiniMap, World, type WorldApi } from "./World";
 type Panel = null | "chat" | "people" | "menu" | "barter" | "you" | "map" | "help" | "trade";
 
 /** The nearest player you could attack, and how far away they are. */
+/** What each building holds, for the Enter button. */
+const INSIDE: Record<BuildingId, string> = {
+  hospital: "Medicine on the beds",
+  palace: "The compass and a diamond",
+  hotel: "Tools in the cellar, a diamond in the safe",
+  lighthouse: "Fuel drums and the lamp",
+  stables: "Tools and saddles",
+  shipwreck: "Fuel and a diamond in the hold",
+  market: "A supply and the barter counter",
+};
+
 function attackTarget(v: GameView, pos: { x: number; y: number }, now: number) {
+  const here = buildingAt(pos.x, pos.y);
   return v.players
     .filter((p) => p.id !== v.you && !p.brig && now >= p.downUntil && now >= p.guardUntil)
+    .filter((p) => {
+      const l = live.pos.get(p.id) ?? p;
+      return buildingAt(l.x, l.y) === here;
+    })
     .map((p) => {
       const l = live.pos.get(p.id) ?? p;
       return { p, d: Math.hypot(l.x - pos.x, l.y - pos.y) };
@@ -104,6 +120,11 @@ export function Game({ v }: { v: GameView }) {
         actions.push({ key: "strike", label: "⚔ Attack", sub: t ? `Get closer to ${t.p.name} (follow the red arrow)` : "Nobody to attack right now", onClick: () => toast(t ? `Walk right up to ${t.p.name} first. Follow the red arrow.` : "There's nobody you can attack right now."), tone: "danger" });
       }
     }
+    // Buildings: Enter at the door, Go outside from anywhere inside.
+    const room = buildingAt(pos.x, pos.y);
+    const door = room ? null : nearDoor(pos);
+    if (room) actions.push({ key: "leave", label: "Go outside", sub: `Leave ${room.name}`, onClick: () => act({ type: "leave" }), tone: "ghost" });
+    else if (door && !v.closed.includes(door.id)) actions.push({ key: "enter", label: `Enter ${door.name}`, sub: INSIDE[door.id], onClick: () => act({ type: "enter" }), tone: "primary" });
     const dive = nearDive(pos);
     if (dive >= 0) {
       const wait = v.diveReady[dive] - now;
@@ -146,6 +167,8 @@ export function Game({ v }: { v: GameView }) {
   if (me.brig) hint = "You're locked in the ferry's brig. You'll sail, but you can't help or hinder.";
   else if (down) hint = `Knocked out! You're back on your feet in ${Math.ceil((me.downUntil - now) / 1000)}s.`;
   else if (busy) hint = "Diving…";
+  else if (buildingAt(pos.x, pos.y) && me.carry.length >= carryLimit(me)) hint = "Hands full. Tap Go outside and take it to the ferry.";
+  else if (buildingAt(pos.x, pos.y)) hint = `You're inside ${buildingAt(pos.x, pos.y)!.name}. Walk into anything glowing to take it, then tap Go outside.`;
   else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
   else if (v.sailAt) hint = `The ferry sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";

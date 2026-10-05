@@ -4,7 +4,8 @@
 import { useEffect, useRef } from "react";
 import { type GameView, type PlayerView, carryLimit, speedOf } from "../../shared/game";
 import { SIGNALS } from "../../shared/protocol";
-import { FERRY, GANGWAY, H, W, ZONES, ZONE_IDS, footing, seaLevel, swimming, tideLevel } from "../../shared/world";
+import { FERRY, GANGWAY, H, W, ZONES, ZONE_IDS, buildingAt, footing, outdoorPos, seaLevel, swimming, tideLevel } from "../../shared/world";
+import { drawDoors, drawInterior, outdoorBuildings } from "./interiors";
 import { getStore, live, sendMove } from "./net";
 import {
   type Prop, drawCrate, drawDock, drawFerry, drawGangway, drawGlints, drawItem, drawLandmarks, drawPearls, drawPerson,
@@ -77,6 +78,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     const keys = new Set<string>();
     const stick = { x: 0, y: 0 };
     let target: { x: number; y: number } | null = null;
+    let lastRoom: ReturnType<typeof buildingAt> = null;
     let lastSent = 0;
     let sentMoving = false;
     let lastFx = Math.max(0, ...viewRef.current.fx.map((f) => f.n));
@@ -273,6 +275,20 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         waterPainted = nowP;
       }
       const self = v.players.find((p) => p.id === v.you);
+      // Inside a building the camera frames the whole room.
+      const room = buildingAt(me.x, me.y);
+      if (room) {
+        const rw = room.room.x2 - room.room.x1;
+        const rh = room.room.y2 - room.room.y1;
+        scale = Math.min(1.6, vw / (rw + 30), vh / (rh + 200));
+      } else scale = base * zoom;
+      if (room !== lastRoom) {
+        lastRoom = room;
+        const c = room ? { x: (room.room.x1 + room.room.x2) / 2, y: (room.room.y1 + room.room.y2) / 2 + 20 } : me;
+        cam.x = c.x;
+        cam.y = c.y;
+        target = null;
+      }
 
       // Local movement, predicted here and confirmed by the server.
       if (live.snap) {
@@ -363,13 +379,16 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
 
       // Camera eases after you, staying over the island.
       const sail = v.phase === "sailing" || v.phase === "over" ? Math.min(900, Math.max(0, (now - ((v.phaseEndsAt ?? now) - 7000)) / 7000) * 900) : 0;
-      const focus = v.phase === "sailing" || v.phase === "over" ? { x: FERRY.x + sail * 0.6, y: FERRY.y - 60 } : me;
+      const roomNow = buildingAt(me.x, me.y);
+      const focus = v.phase === "sailing" || v.phase === "over" ? { x: FERRY.x + sail * 0.6, y: FERRY.y - 60 } : roomNow ? { x: (roomNow.room.x1 + roomNow.room.x2) / 2, y: (roomNow.room.y1 + roomNow.room.y2) / 2 + 20 } : me;
       cam.x += (focus.x - cam.x) * Math.min(1, dt * 4);
       cam.y += (focus.y - cam.y) * Math.min(1, dt * 4);
       const halfW = vw / 2 / scale;
       const halfH = vh / 2 / scale;
-      cam.x = halfW * 2 > W + 400 ? W / 2 : Math.max(halfW - 200, Math.min(W + 200 - halfW, cam.x));
-      cam.y = halfH * 2 > H + 400 ? H / 2 : Math.max(halfH - 200, Math.min(H + 200 - halfH, cam.y));
+      if (!roomNow) {
+        cam.x = halfW * 2 > W + 400 ? W / 2 : Math.max(halfW - 200, Math.min(W + 200 - halfW, cam.x));
+        cam.y = halfH * 2 > H + 400 ? H / 2 : Math.max(halfH - 200, Math.min(H + 200 - halfH, cam.y));
+      }
 
       // New world events become sounds and sparkles.
       for (const f of v.fx) {
@@ -405,7 +424,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
 
       // ---- draw ----
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = seaColor(level);
+      ctx.fillStyle = roomNow ? "#101618" : seaColor(level);
       ctx.fillRect(0, 0, vw, vh);
       ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * (vw / 2 - cam.x * scale), dpr * (vh / 2 - cam.y * scale));
       const x0 = cam.x - halfW - 80;
@@ -413,6 +432,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       const y0 = cam.y - halfH - 80;
       const y1 = cam.y + halfH + 160;
       ctx.imageSmoothingEnabled = true;
+      if (roomNow) drawInterior(ctx, roomNow, t, now < v.lampUntil);
+      else {
       ctx.drawImage(terrain, 0, 0, W, H);
       drawRoads(ctx, v.secretFound, t);
       ctx.drawImage(water, 0, 0, W, H);
@@ -420,6 +441,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       drawDock(ctx);
       drawFerry(ctx, t, Math.min(1, v.slots / v.capacity), sail, v.supplies.fuel >= v.needs.fuel && v.supplies.medicine >= v.needs.medicine && v.supplies.tools >= v.needs.tools);
       if (v.phase === "play") drawGangway(ctx, t, !!self?.carry.some((c) => c.kind !== "cutlass"));
+      if (v.phase === "play") drawDoors(ctx, t, me, v.closed, (b) => v.crates.filter((c) => (!c.owner || c.owner === v.you) && buildingAt(c.x, c.y) === b).length);
 
       // Place names are painted on the land, under people and trees.
       ctx.font = `italic 700 ${Math.round(Math.max(15, 11 / scale))}px Georgia, serif`;
@@ -434,10 +456,11 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         ctx.strokeText(flooded ? `${z.name} (flooded)` : z.name, z.x, ly);
         ctx.fillText(flooded ? `${z.name} (flooded)` : z.name, z.x, ly);
       }
+      }
 
       const items: { y: number; draw: () => void }[] = [];
-      for (const p of props) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1 && level - 0.25 < 99 && footing(p.x, p.y, g) > 0.6) items.push({ y: p.y, draw: () => drawProp(ctx, p, t) });
-      for (const l of drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level)) items.push(l);
+      if (!roomNow) for (const p of props) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1 && level - 0.25 < 99 && footing(p.x, p.y, g) > 0.6) items.push({ y: p.y, draw: () => drawProp(ctx, p, t) });
+      if (!roomNow) for (const l of [...drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level), ...outdoorBuildings(ctx)]) items.push(l);
       for (const c of v.crates) {
         if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue;
         if (c.zone !== "cave" || v.caveOpen) spotted.ids.add(c.id);
@@ -551,7 +574,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       }
 
       // Zoomed far out: a gold ring so you can find yourself.
-      if (scale < 0.7 && v.phase === "play") {
+      if (scale < 0.7 && v.phase === "play" && !roomNow) {
         ctx.strokeStyle = `rgba(242,209,75,${0.6 + 0.3 * Math.sin(t / 200)})`;
         ctx.lineWidth = 3 / scale;
         ctx.beginPath();
@@ -570,7 +593,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
 
       // ---- screen space: arrow to the ferry, joystick ----
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (v.phase === "play" && self) {
+      if (v.phase === "play" && self && !roomNow) {
         const tx = GANGWAY.x;
         const ty = GANGWAY.y;
         const sx = (tx - cam.x) * scale + vw / 2;
@@ -601,10 +624,12 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         }
       }
       // Glinting pointers to the nearest crates you can't see yet.
-      if (v.phase === "play" && self && self.carry.length < carryLimit(self)) {
+      if (v.phase === "play" && self && self.carry.length < carryLimit(self) && !roomNow) {
+        // Crates inside buildings are pointed to at their door.
         const near = v.crates
           .filter((c) => (c.zone !== "cave" || v.caveOpen) && (!c.owner || c.owner === v.you) && footing(c.x, c.y, g) > 0)
-          .map((c) => ({ c, d: Math.hypot(c.x - me.x, c.y - me.y) * (c.owner ? 0.4 : 1) }))
+          .map((cr) => ({ cr, c: { ...outdoorPos(cr.x, cr.y), kind: cr.kind } }))
+          .map(({ cr, c }) => ({ c, d: Math.hypot(c.x - me.x, c.y - me.y) * (cr.owner ? 0.4 : 1) }))
           .filter(({ c }) => {
             const sx = (c.x - cam.x) * scale + vw / 2;
             const sy = (c.y - cam.y) * scale + vh / 2;
@@ -643,7 +668,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         for (const p of v.players) {
           if (p.id === v.you || p.brig || now < p.downUntil || now < p.guardUntil) continue;
           const o = others.get(p.id);
-          if (!o) continue;
+          if (!o || buildingAt(o.x, o.y) !== roomNow) continue;
           const d = Math.hypot(o.x - me.x, o.y - me.y);
           if (!best || d < best.d) best = { x: o.x, y: o.y, d };
         }
@@ -783,7 +808,8 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
         ctx.arc(pile.x * k, pile.y * k, dot * 0.45, 0, Math.PI * 2);
         ctx.fill();
       }
-      for (const cr of v.crates) {
+      for (const crate of v.crates) {
+        const cr = { ...crate, ...outdoorPos(crate.x, crate.y) };
         const show = lamp || spotted.ids.has(cr.id) || (me?.role === "physician" && cr.kind === "medicine");
         if (!show) continue;
         ctx.fillStyle = cr.kind === "medicine" ? "#ff8f9c" : cr.kind === "diamond" || cr.kind === "compass" ? "#bfe8f5" : cr.kind === "cutlass" ? "#ff6b5e" : "#f2d14b";
@@ -808,8 +834,9 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
       ctx.fillRect((FERRY.x - 150) * k, (FERRY.y - 10) * k, 300 * k, 18 * k);
       for (const p of v.players) {
         const l = live.pos.get(p.id);
-        const x = (l?.x ?? p.x) * k;
-        const y = (l?.y ?? p.y) * k;
+        const at = outdoorPos(l?.x ?? p.x, l?.y ?? p.y);
+        const x = at.x * k;
+        const y = at.y * k;
         if (p.brig) continue;
         ctx.fillStyle = p.id === v.you ? "#f2d14b" : p.bot ? "#cfc4b0" : "#7fe0d2";
         ctx.beginPath();

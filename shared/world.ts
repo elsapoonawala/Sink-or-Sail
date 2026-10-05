@@ -198,6 +198,7 @@ export function onSecretPath(x: number, y: number) {
 
 /** How deep the water at a point is, given the current sea level (0 = dry). */
 export function depthAt(x: number, y: number, level: number) {
+  if (x >= INTERIOR_X) return 0;
   return Math.max(0, level - elev(x, y));
 }
 
@@ -212,6 +213,12 @@ export const SWIM_DEPTH = 1.1;
 
 /** Speed multiplier here: 1 on land, slower wading, slow swimming in flooded ground, 0 in open sea. */
 export function footing(x: number, y: number, g: Ground): number {
+  if (x >= INTERIOR_X) {
+    const b = buildingAt(x, y);
+    if (!b) return 0;
+    const r = b.room;
+    return x > r.x1 + WALL && x < r.x2 - WALL && y > r.y1 + WALL * 2.2 && y < r.y2 - WALL / 3 ? 1 : 0;
+  }
   if (x < 0 || y < 0 || x > W || y > H) return 0;
   if (!g.caveOpen && Math.hypot(x - CAVE.x, y - CAVE.y) < CAVE.r) return 0;
   if (onDock(x, y)) return 1;
@@ -412,4 +419,76 @@ export function findPath(ax: number, ay: number, bx: number, by: number, g: Grou
     cy = pts[n].y;
   }
   return out;
+}
+
+// ---------- buildings you can walk into ----------
+
+export type BuildingId = "hospital" | "palace" | "hotel" | "lighthouse" | "stables" | "shipwreck" | "market";
+
+export interface Building {
+  id: BuildingId;
+  name: string;
+  /** The outdoor doorstep. */
+  door: { x: number; y: number };
+  /** The room, laid out far east of the island so it never overlaps the map. */
+  room: { x1: number; y1: number; x2: number; y2: number };
+  /** Spots inside where things are kept (shelves, beds, the safe...). */
+  spots: { x: number; y: number }[];
+  /** A spot inside that works like an outdoor one (the lamp, the saddles, the counter). */
+  station?: { x: number; y: number; kind: "lamp" | "saddle" | "counter" };
+}
+
+/** Rooms start here; nothing on the island is this far east. */
+export const INTERIOR_X = 3000;
+const ROOM_W = 640;
+const ROOM_H = 420;
+
+function room(i: number) {
+  const x1 = INTERIOR_X + i * 900;
+  return { x1, y1: 200, x2: x1 + ROOM_W, y2: 200 + ROOM_H };
+}
+
+function spotsIn(i: number, pts: [number, number][]) {
+  const r = room(i);
+  return pts.map(([fx, fy]) => ({ x: r.x1 + fx * ROOM_W, y: r.y1 + fy * ROOM_H }));
+}
+
+export const BUILDINGS: Building[] = [
+  { id: "hospital", name: "Saltmere Hospital", door: { x: 720, y: 425 }, room: room(0), spots: spotsIn(0, [[0.18, 0.3], [0.38, 0.3], [0.62, 0.3], [0.82, 0.3], [0.12, 0.62]]) },
+  { id: "palace", name: "Hilltop Palace", door: { x: 1200, y: 662 }, room: room(1), spots: spotsIn(1, [[0.5, 0.24], [0.2, 0.45], [0.8, 0.45]]) },
+  { id: "hotel", name: "Grand Hotel", door: { x: 1760, y: 518 }, room: room(2), spots: spotsIn(2, [[0.16, 0.32], [0.84, 0.3], [0.3, 0.6], [0.7, 0.6]]) },
+  { id: "lighthouse", name: "The Lighthouse", door: { x: 2200, y: 815 }, room: room(3), spots: spotsIn(3, [[0.2, 0.35], [0.8, 0.35], [0.22, 0.65]]), station: { ...spotsIn(3, [[0.5, 0.3]])[0], kind: "lamp" } },
+  { id: "stables", name: "Royal Stables", door: { x: 960, y: 888 }, room: room(4), spots: spotsIn(4, [[0.15, 0.62], [0.85, 0.62], [0.5, 0.25]]), station: { ...spotsIn(4, [[0.3, 0.3]])[0], kind: "saddle" } },
+  { id: "shipwreck", name: "The Shipwreck", door: { x: 630, y: 1285 }, room: room(5), spots: spotsIn(5, [[0.2, 0.4], [0.5, 0.3], [0.8, 0.45], [0.35, 0.68]]) },
+  { id: "market", name: "Pearl Market Shop", door: { x: 1850, y: 1030 }, room: room(6), spots: spotsIn(6, [[0.18, 0.32], [0.82, 0.32], [0.25, 0.66]]), station: { ...spotsIn(6, [[0.5, 0.36]])[0], kind: "counter" } },
+];
+
+export const BUILDING: Record<BuildingId, Building> = Object.fromEntries(BUILDINGS.map((b) => [b.id, b])) as Record<BuildingId, Building>;
+
+/** Walls are this thick; you walk on the floor inside them. */
+export const WALL = 34;
+
+/** The building a point is inside, if any. */
+export function buildingAt(x: number, y: number): Building | null {
+  if (x < INTERIOR_X) return null;
+  return BUILDINGS.find((b) => inRect(x, y, b.room)) ?? null;
+}
+
+/** Where you stand just inside the door, and where the inside door is. */
+export function insideDoor(b: Building) {
+  return { x: (b.room.x1 + b.room.x2) / 2, y: b.room.y2 - WALL - 24 };
+}
+export function exitDoor(b: Building) {
+  return { x: (b.room.x1 + b.room.x2) / 2, y: b.room.y2 - WALL / 2 };
+}
+
+/** A building stays open until the sea reaches its door. */
+export function buildingOpen(b: Building, level: number) {
+  return elev(b.door.x, b.door.y) > level;
+}
+
+/** Outdoors, things inside a building are shown at its door. */
+export function outdoorPos(x: number, y: number): { x: number; y: number } {
+  const b = buildingAt(x, y);
+  return b ? b.door : { x, y };
 }
