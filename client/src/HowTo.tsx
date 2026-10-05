@@ -88,7 +88,7 @@ export function Rules() {
           <li key={i}><span aria-hidden="true">{r.icon}</span><p>{r.text}</p></li>
         ))}
       </ol>
-      <p className="quick-foot">That's all you need. Hints on screen guide you through the first tide.</p>
+      <p className="quick-foot">With 5 or more players, one of you may secretly be the <b>Wrecker</b>, throwing crates overboard. If she sinks, the Wrecker wins. That's all you need. Hints on screen guide you through the first tide.</p>
       <button className="btn ghost small" type="button" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Hide the details" : "All the details"}</button>
       {more && <FullRules />}
     </div>
@@ -175,7 +175,7 @@ function FullRules() {
         <h4>11. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
         <ul>
           <li>One player (two with 7 or more) is secretly a Wrecker. Wreckers win if the ferry sinks.</li>
-          <li>Standing at the gangway, a Wrecker can secretly sink a supply from the hold every 45 seconds.</li>
+          <li>Only the Wrecker sees a secret <b>Sink a crate</b> button, on the LOAD HERE circle by the ferry. Each tap throws one crate overboard (the bar drops by 1) with a splash, every 45 seconds at most. Watch who's standing at the ferry when you hear it.</li>
           <li>Each player can accuse someone once per game. If a majority votes yes, the accused is locked in the ferry's brig and their cargo spills on the pier.</li>
         </ul>
       </section>

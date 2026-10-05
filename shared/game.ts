@@ -975,13 +975,14 @@ export function dump(s: GameState, pid: string, now: number, rng: Rng): string |
   if (!p || s.phase !== "play" || !p.wrecker || p.brig) return null;
   if (!nearGangway(p)) return "Get to the gangway first.";
   if (now - p.lastDump < DUMP_COOLDOWN) return `Too risky. Wait ${Math.ceil((DUMP_COOLDOWN - (now - p.lastDump)) / 1000)}s.`;
-  const supplies = s.hold.filter((c) => SUPPLIES.includes(c.kind as Supply));
-  if (!supplies.length) return "There's nothing aboard worth sinking yet.";
-  const victim = supplies[Math.floor(rng() * supplies.length)];
+  // Any crate counts toward the goal, so any crate can go over (diamonds are someone's fortune).
+  const crates = s.hold.filter((c) => c.kind !== "diamond");
+  if (!crates.length) return "There's nothing aboard worth sinking yet.";
+  const victim = crates[Math.floor(rng() * crates.length)];
   s.hold = s.hold.filter((c) => c.id !== victim.id);
   p.lastDump = now;
   fx(s, "splash", GANGWAY.x + 30, GANGWAY.y + 40);
-  log(s, `Splash! A crate of ${KIND_INFO[victim.kind].name.toLowerCase()} went over the side of the ferry.`, "alert");
+  log(s, "Splash! A crate went over the side of the ferry. Who was standing there?", "alert");
   return null;
 }
 
