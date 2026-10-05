@@ -735,11 +735,11 @@ kbd { display: inline-grid; place-items: center; width: 40px; height: 40px; bord
   .hud-tide { width: auto; max-width: 52vw; padding: 7px 10px; gap: 4px; }
   .tide-clock { font-size: 18px; }
   .tide-next { font-size: 11px; }
-  .hud-map .minimap { width: 104px !important; height: 69px !important; }
+  .hud-map .minimap { width: 150px !important; height: 100px !important; }
   .hud-icons { gap: 4px; }
   .hud-icons .icon-btn { width: 32px; min-width: 32px; height: 32px; padding: 0; }
   .zoom-glyph { font-size: 19px; }
-  .hud-hold { top: calc(max(10px, env(safe-area-inset-top)) + 112px); gap: 3px; padding: 3px 5px; }
+  .hud-hold { top: calc(max(10px, env(safe-area-inset-top)) + 146px); gap: 3px; padding: 3px 5px; }
   .hud-hold .gauge { padding: 1px 6px 1px 1px; gap: 2px; }
   .hud-hold .gauge svg { width: 22px !important; height: 16px !important; }
   .hud-hold .gauge b { font-size: 12px; }

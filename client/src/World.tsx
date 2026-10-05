@@ -804,7 +804,7 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
       ctx.drawImage(water, 0, 0, size, hgt);
       const me = v.players.find((p) => p.id === v.you);
       const lamp = now < v.lampUntil;
-      const dot = Math.max(3, size / 110);
+      const dot = Math.max(3.5, size / 75);
       for (const pile of v.piles) {
         if (!lamp && !spotted.ids.has(pile.id)) continue;
         ctx.fillStyle = "#f6f0e6";
@@ -857,12 +857,36 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
         if (p.brig) continue;
         ctx.fillStyle = p.id === v.you ? "#f2d14b" : p.bot ? "#cfc4b0" : "#7fe0d2";
         ctx.beginPath();
-        ctx.arc(x, y, p.id === v.you ? 3.5 : 2.5, 0, Math.PI * 2);
+        ctx.arc(x, y, (p.id === v.you ? 3.5 : 2.5) * Math.max(1, size / 260), 0, Math.PI * 2);
         ctx.fill();
         if (p.id === v.you) {
           ctx.strokeStyle = "#1d1410";
           ctx.lineWidth = 1;
           ctx.stroke();
+        }
+        if (size >= 300) {
+          // The big map names everyone.
+          ctx.font = `700 ${Math.round(Math.max(10, size / 60))}px Jost, sans-serif`;
+          ctx.textAlign = "center";
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(10,30,36,.85)";
+          ctx.fillStyle = p.id === v.you ? "#f2d14b" : "#f3ece0";
+          const label = p.id === v.you ? "You" : p.name;
+          ctx.strokeText(label, x, y - 8);
+          ctx.fillText(label, x, y - 8);
+        }
+      }
+      if (size >= 300) {
+        // Place names, so the big map reads like a real map.
+        ctx.font = `italic 700 ${Math.round(Math.max(11, size / 50))}px Georgia, serif`;
+        ctx.textAlign = "center";
+        ctx.lineWidth = 3;
+        for (const id of ZONE_IDS) {
+          const z = ZONES[id];
+          ctx.strokeStyle = "rgba(10,30,36,.7)";
+          ctx.fillStyle = "rgba(255,248,230,.95)";
+          ctx.strokeText(z.name, z.x * k, z.y * k + size / 40);
+          ctx.fillText(z.name, z.x * k, z.y * k + size / 40);
         }
       }
     };

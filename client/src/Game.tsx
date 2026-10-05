@@ -4,7 +4,7 @@ import {
   type GameView, DUMP_COOLDOWN, GOLDEN_PEARLS, MONSTER_R, KIND_INFO, ROLE_INFO, STRIKE_R,
   carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nextWaveAt,
 } from "../../shared/game";
-import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, footing, onDock, seaLevel, swimming } from "../../shared/world";
+import { type BuildingId, GANGWAY, H, W, ZONES, ZONE_IDS, buildingAt, floodsAtTide, footing, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
 import { ChatPanel, SignalBar } from "./Comms";
 import { Rules } from "./HowTo";
@@ -212,7 +212,7 @@ export function Game({ v }: { v: GameView }) {
       {/* top right: map and menu */}
       <section className="hud-map">
         <button className="map-btn" onClick={() => setPanel("map")} aria-label="Open the big map">
-          <MiniMap v={v} size={150} />
+          <MiniMap v={v} size={200} />
         </button>
         <div className="hud-icons">
           <button className="icon-btn" onClick={() => api.current?.zoomBy(1 / 1.4)} aria-label="Zoom out" title="Zoom out (or scroll / pinch)"><b className="zoom-glyph">−</b></button>
@@ -301,8 +301,8 @@ export function Game({ v }: { v: GameView }) {
       )}
       {panel === "map" && (
         <Sheet title="The island" onClose={() => setPanel(null)} wide>
-          <div className="big-map"><MiniMap v={v} size={Math.min(640, window.innerWidth - 60)} /></div>
-          <p className="small muted">Crates and pearls you've seen show as dots: gold for fuel and tools, pink for medicine, blue diamonds, red cutlasses. Zoom out on the island (scroll, pinch or −) to spot more at once.</p>
+          <div className="big-map"><MiniMap v={v} size={Math.round(Math.min(720, window.innerWidth - 48, ((window.innerHeight - 160) * W) / H))} /></div>
+          <p className="small muted">Crates and pearls you've seen show as dots: gold for fuel and tools, pink for medicine, blue diamonds, red cutlasses, and a gold ring for the golden crate. Zoom out on the island (scroll, pinch or −) to spot more at once.</p>
           <ul className="legend small">
             {ZONE_IDS.map((z) => {
               const n = floodsAtTide(z, v.totalTides);
