@@ -20,7 +20,7 @@ const SLIDES = [
   },
   {
     title: "Grab crates, load the Kohinoor",
-    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the Kohinoor: your crates go in by themselves (or tap the Load button near the dock). About 10 crates wash up every tide, in three waves, plus one with your name near you each wave that only you can take.",
+    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the Kohinoor: your crates go in by themselves (or tap the Load button near the dock). About 14 crates wash up every tide, in three waves, plus one with your name near you each wave that only you can take.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -122,7 +122,7 @@ function FullRules() {
           <li>To load, step onto the gold circle marked <b>LOAD HERE</b> at the Kohinoor's gangway. Everything you carry goes into the hold by itself, and a message confirms it. Near the dock, the <b>Load</b> button walks you there.</li>
           <li>Any crate counts. The Kohinoor needs <b>7 crates for each player</b>, and at least 20 (quick game: 5 per player, at least 12). The bar at the top shows how many are aboard.</li>
           <li>The hold never fills up. Once the Kohinoor has enough crates, each extra one you load still pays you <b>2 pearls</b>.</li>
-          <li>About 10 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
+          <li>About 14 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
           <li>Every wave also puts <b>1 crate with your name</b> near you. Only you can pick it up, so the bots can't take everything. Gold pointers at the edge of the screen lead to the nearest crates.</li>
           <li>Seven buildings have a glowing doorstep: the Hospital (by the gardens), the Palace, the Grand Hotel, the Lighthouse, the Royal Stables, the Shipwreck and the Pearl Market Shop. Tap <b>Enter</b> at the door to go in and pick up what's inside, and <b>Go outside</b> to leave. They restock every tide. When the sea reaches a door, that building floods and closes for good. Bots never go inside.</li>
           <li>Bots carry at most 2 crates, move a little slower than people, and leave alone crates that you're close to.</li>
