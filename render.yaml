@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: the-last-ferry
+    name: sink-or-sail
     runtime: node
     plan: free
     buildCommand: npm install && npm run build

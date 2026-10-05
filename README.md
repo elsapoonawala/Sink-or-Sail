@@ -1,5 +1,7 @@
 # Sink or Sail
 
+Play it at **https://sink-or-sail.onrender.com**
+
 Saltmere is sinking. One grand old ferry waits at the harbour. Fill its hold with fuel, medicine and tools, and sail before the tide takes the island. Carry off whatever treasure you can fit.
 
 A live multiplayer browser game for 1 to 8 players. One person starts a room, everyone else joins with the 4-letter code or the link, from any phone or laptop. No accounts, no installs. Bots fill empty seats. A game lasts five tides, about 15 minutes (or about 8 in quick mode).
