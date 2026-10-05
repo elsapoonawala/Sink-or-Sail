@@ -359,7 +359,7 @@ export function Ferry({ fill = 0, sailing = false }: { fill?: number; sailing?: 
       {Array.from({ length: crates }, (_, i) => (
         <rect key={i} x={46 + (i % 4) * 9} y={34 - Math.floor(i / 4) * 9} width="8" height="8" fill={i % 3 === 0 ? "#c9783a" : i % 3 === 1 ? "#6b4a2f" : "#e3f0ec"} stroke="#3f2a19" strokeWidth=".6" />
       ))}
-      <text x="5" y="60" fontSize="7" textAnchor="middle" fill="#8a6420" fontFamily="Bodoni Moda, serif" fontStyle="italic">The Kohinoor</text>
+      <text x="5" y="61.5" fontSize="10" fontWeight="700" textAnchor="middle" fill="#7a5418" fontFamily="Bodoni Moda, serif" fontStyle="italic">The Kohinoor</text>
       <g className="smoke">
         <circle cx="12" cy="-32" r="7" fill="#fff" opacity=".35" />
         <circle cx="20" cy="-44" r="9" fill="#fff" opacity=".22" />

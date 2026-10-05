@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ROLES, ROLE_INFO } from "../../shared/game";
-import { Portrait } from "./art";
+import { Ferry, Portrait } from "./art";
 import { HomeScene } from "./HomeScene";
 import { Rules } from "./HowTo";
 import { Sheet } from "./ui";
@@ -42,8 +42,10 @@ export function Home() {
         <header className="home-title">
           <span className="eyebrow">1 to 8 players · no sign-up</span>
           <h1>Sink <em>or</em> Sail</h1>
-          <p className="ornament" aria-hidden="true"><span />✦<span /></p>
-          <p className="lede">The tide is rising over Saltmere. Race your friends across the island on foot and on horseback, haul fuel, medicine and tools to the old ferry, the Kohinoor, and grab diamonds before the sea takes them. Be on the pier when she sails.</p>
+          <figure className="home-ship" aria-label="The ferry, the Kohinoor">
+            <svg viewBox="-100 -50 200 125" aria-hidden="true"><Ferry fill={0.55} /></svg>
+          </figure>
+          <p className="lede">The tide is rising over the island. Race your friends across the island on foot and on horseback, haul fuel, medicine and tools to the last ferry, <b>the Kohinoor</b>, and grab diamonds before the sea takes them. Be on the pier when she sails.</p>
         </header>
 
         <div className="home-card">

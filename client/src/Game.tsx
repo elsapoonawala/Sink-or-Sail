@@ -334,7 +334,7 @@ export function Game({ v }: { v: GameView }) {
         </Sheet>
       )}
       {panel === "map" && (
-        <Sheet title="Saltmere" onClose={() => setPanel(null)} wide>
+        <Sheet title="The island" onClose={() => setPanel(null)} wide>
           <div className="big-map"><MiniMap v={v} size={Math.min(640, window.innerWidth - 60)} /></div>
           <p className="small muted">Crates and pearls you've seen show as dots: gold for fuel and tools, pink for medicine, blue diamonds, red cutlasses. Zoom out on the island (scroll, pinch or −) to spot more at once.</p>
           <ul className="legend small">

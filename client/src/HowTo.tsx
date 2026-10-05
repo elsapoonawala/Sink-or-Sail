@@ -5,7 +5,7 @@ import { CardArt, Ferry, PearlIcon } from "./art";
 const SLIDES = [
   {
     title: "The goal",
-    body: "Saltmere is sinking. Work together to load the old ferry, the Kohinoor, with enough crates (the bar at the top shows how many), then be on the pier when she sails. Too few crates and she sinks. If she makes it, the richest passenger wins.",
+    body: "The island is sinking. Work together to load the old ferry, the Kohinoor, with enough crates (the bar at the top shows how many), then be on the pier when she sails. Too few crates and she sinks. If she makes it, the richest passenger wins.",
     art: (
       <svg viewBox="-110 -50 220 130" width="220" height="130" aria-hidden="true">
         <rect x="-110" y="40" width="220" height="40" fill="url(#g-sea)" />
@@ -101,7 +101,7 @@ function FullRules() {
     <div className="rules">
       <section>
         <h4>1. The goal</h4>
-        <p>Saltmere is sinking. Everyone works together to load the Kohinoor with enough crates, then stands on the pier when she sails. If she has enough aboard, everyone on the pier escapes and the player with the biggest fortune wins. If she's short, she sinks and nobody wins (unless there's a Wrecker, who wins instead).</p>
+        <p>The island is sinking. Everyone works together to load the Kohinoor with enough crates, then stands on the pier when she sails. If she has enough aboard, everyone on the pier escapes and the player with the biggest fortune wins. If she's short, she sinks and nobody wins (unless there's a Wrecker, who wins instead).</p>
       </section>
       <section>
         <h4>2. Time</h4>

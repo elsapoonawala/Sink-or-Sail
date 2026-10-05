@@ -111,6 +111,9 @@ input:focus { border-color: var(--brass); outline: none; }
 .ornament span { width: 70px; height: 1px; background: linear-gradient(90deg, transparent, var(--brass)); }
 .ornament span:last-child { transform: scaleX(-1); }
 .home-title .lede { color: #efe6d2; font-size: 18px; max-width: 56ch; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
+.home-title .lede b { color: var(--brass-hi); }
+.home-ship { margin: -4px 0 0; width: min(320px, 70vw); filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55)); }
+.home-ship svg { display: block; width: 100%; height: auto; }
 .home-card {
   width: min(460px, 100%); position: relative;
   background: linear-gradient(170deg, rgba(16, 58, 69, 0.88), rgba(8, 33, 42, 0.92));

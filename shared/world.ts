@@ -1,4 +1,4 @@
-// The island of Saltmere: terrain, places and the rising tide.
+// The island: terrain, places and the rising tide.
 // Pure functions shared by the server (authoritative movement) and the client (drawing).
 
 export const W = 2400;
@@ -454,7 +454,7 @@ function spotsIn(i: number, pts: [number, number][]) {
 }
 
 export const BUILDINGS: Building[] = [
-  { id: "hospital", name: "Saltmere Hospital", door: { x: 720, y: 425 }, room: room(0), spots: spotsIn(0, [[0.18, 0.3], [0.38, 0.3], [0.62, 0.3], [0.82, 0.3], [0.12, 0.62]]) },
+  { id: "hospital", name: "Island Hospital", door: { x: 720, y: 425 }, room: room(0), spots: spotsIn(0, [[0.18, 0.3], [0.38, 0.3], [0.62, 0.3], [0.82, 0.3], [0.12, 0.62]]) },
   { id: "palace", name: "Hilltop Palace", door: { x: 1200, y: 662 }, room: room(1), spots: spotsIn(1, [[0.5, 0.24], [0.2, 0.45], [0.8, 0.45]]) },
   { id: "hotel", name: "Grand Hotel", door: { x: 1760, y: 518 }, room: room(2), spots: spotsIn(2, [[0.16, 0.32], [0.84, 0.3], [0.3, 0.6], [0.7, 0.6]]) },
   { id: "lighthouse", name: "The Lighthouse", door: { x: 2200, y: 815 }, room: room(3), spots: spotsIn(3, [[0.2, 0.35], [0.8, 0.35], [0.22, 0.65]]), station: { ...spotsIn(3, [[0.5, 0.3]])[0], kind: "lamp" } },
