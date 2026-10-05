@@ -22,7 +22,7 @@ export function End({ v }: { v: GameView }) {
   const iWon = r.winners === "islanders" ? !me.wrecker : r.winners === "wrecker" ? !!me.wrecker : false;
 
   const headline = r.success
-    ? "The Saltmere Queen made it across"
+    ? "The Kohinoor made it across"
     : "Glug, glug... she sank";
   const left = r.fortunes.filter((f) => !f.aboard).map((f) => name(f.id));
   const sub = r.success

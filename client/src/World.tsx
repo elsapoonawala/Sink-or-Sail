@@ -620,7 +620,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           ctx.font = "700 11px 'Courier Prime', monospace";
           ctx.fillStyle = "#f3ece0";
           ctx.textAlign = "center";
-          ctx.fillText(self.carry.length >= carryLimit(self) ? "Ferry (hands full)" : "Ferry", ax - Math.cos(a) * 26, ay - Math.sin(a) * 26 + 4);
+          ctx.fillText(self.carry.length >= carryLimit(self) ? "Kohinoor (hands full)" : "Kohinoor", ax - Math.cos(a) * 26, ay - Math.sin(a) * 26 + 4);
         }
       }
       // Glinting pointers to the nearest crates you can't see yet.

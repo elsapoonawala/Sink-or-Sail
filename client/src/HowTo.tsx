@@ -5,7 +5,7 @@ import { CardArt, Ferry, PearlIcon } from "./art";
 const SLIDES = [
   {
     title: "The goal",
-    body: "Saltmere is sinking. Work together to load the old ferry with enough crates (the bar at the top shows how many), then be on the pier when she sails. Too few crates and she sinks. If she makes it, the richest passenger wins.",
+    body: "Saltmere is sinking. Work together to load the old ferry, the Kohinoor, with enough crates (the bar at the top shows how many), then be on the pier when she sails. Too few crates and she sinks. If she makes it, the richest passenger wins.",
     art: (
       <svg viewBox="-110 -50 220 130" width="220" height="130" aria-hidden="true">
         <rect x="-110" y="40" width="220" height="40" fill="url(#g-sea)" />
@@ -19,8 +19,8 @@ const SLIDES = [
     art: <div className="howto-keys"><kbd>W</kbd><div><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div></div>,
   },
   {
-    title: "Grab crates, load the ferry",
-    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the ferry: your crates go in by themselves (or tap the Load button near the dock). About 10 crates wash up every tide, in three waves, plus one with your name near you each wave. There aren't enough for anyone to fill their order alone, so trade.",
+    title: "Grab crates, load the Kohinoor",
+    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the Kohinoor: your crates go in by themselves (or tap the Load button near the dock). About 10 crates wash up every tide, in three waves, plus one with your name near you each wave. There aren't enough for anyone to fill their order alone, so trade.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -31,7 +31,7 @@ const SLIDES = [
   },
   {
     title: "The tide is rising",
-    body: "Five tides of three minutes. Each new tide floods the lowest places for good, with any crates on them. The map says when each place floods. When the last tide runs out, the ferry leaves.",
+    body: "Five tides of three minutes. Each new tide floods the lowest places for good, with any crates on them. The map says when each place floods. When the last tide runs out, the Kohinoor leaves.",
     art: <div className="howto-tide"><span /><span /><span /></div>,
   },
   {
@@ -56,7 +56,7 @@ const SLIDES = [
   },
   {
     title: "All aboard",
-    body: "Stand on the pier and tap Ready. When more than half are ready, the ferry sails in 15 seconds. Anyone not on the pier is left behind with nothing. Hold the walkie-talkie (or V) to talk.",
+    body: "Stand on the pier and tap Ready. When more than half are ready, the Kohinoor sails in 15 seconds. Anyone not on the pier is left behind with nothing. Hold the walkie-talkie (or V) to talk.",
     art: (
       <div className="howto-cards">
         <svg viewBox="0 0 32 44" width="40" height="54" aria-hidden="true">
@@ -72,8 +72,8 @@ const SLIDES = [
 
 const QUICK: { icon: string; text: React.ReactNode }[] = [
   { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>.</> },
-  { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by the ferry to load them.</> },
-  { icon: "🎯", text: <>Load <b>8 crates per player</b> (at least 20) onto the ferry before the last tide, <b>or she sinks</b>. The bar at the top counts them.</> },
+  { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by our ferry, <b>the Kohinoor</b>, to load them.</> },
+  { icon: "🎯", text: <>Load <b>8 crates per player</b> (at least 20) onto the Kohinoor before the last tide, <b>or she sinks</b>. The bar at the top counts them.</> },
   { icon: "💎", text: <>Get rich: pearls, diamonds, and your secret order. <b>Trade</b> with anyone, any time.</> },
   { icon: "⚓", text: <>Be <b>on the pier</b> when she sails, or you're left behind.</> },
 ];
@@ -101,14 +101,14 @@ function FullRules() {
     <div className="rules">
       <section>
         <h4>1. The goal</h4>
-        <p>Saltmere is sinking. Everyone works together to load the ferry with enough crates, then stands on the pier when she sails. If she has enough aboard, everyone on the pier escapes and the player with the biggest fortune wins. If she's short, she sinks and nobody wins (unless there's a Wrecker, who wins instead).</p>
+        <p>Saltmere is sinking. Everyone works together to load the Kohinoor with enough crates, then stands on the pier when she sails. If she has enough aboard, everyone on the pier escapes and the player with the biggest fortune wins. If she's short, she sinks and nobody wins (unless there's a Wrecker, who wins instead).</p>
       </section>
       <section>
         <h4>2. Time</h4>
         <ul>
           <li>A full game is 5 tides of 3 minutes. A quick game is 3 tides of 2½ minutes.</li>
           <li>Each new tide raises the sea and floods the lowest places for good, along with any crates on them. The map lists when each place floods, and dotted lines on the ground show where the water will reach.</li>
-          <li>The ferry sails when the last tide runs out, or earlier if more than half the players tap <b>Ready</b> on the pier (a 15-second countdown starts).</li>
+          <li>The Kohinoor sails when the last tide runs out, or earlier if more than half the players tap <b>Ready</b> on the pier (a 15-second countdown starts).</li>
         </ul>
       </section>
       <section>
@@ -121,12 +121,12 @@ function FullRules() {
         </ul>
       </section>
       <section>
-        <h4>4. Crates and the ferry</h4>
+        <h4>4. Crates and the Kohinoor</h4>
         <ul>
           <li>Walk into a glowing crate to pick it up. You carry 3 at a time (the Engineer carries 4). Tap something in your hands to drop it.</li>
-          <li>To load, step onto the gold circle marked <b>LOAD HERE</b> at the ferry's gangway. Everything you carry goes into the hold by itself, and a message confirms it. Near the dock, the <b>Load</b> button walks you there.</li>
-          <li>Any crate counts. The ferry needs <b>8 crates for each player</b>, and at least 20 (quick game: 6 per player, at least 12). The bar at the top shows how many are aboard.</li>
-          <li>The hold never fills up. Once the ferry has enough crates, each extra one you load still pays you <b>2 pearls</b>.</li>
+          <li>To load, step onto the gold circle marked <b>LOAD HERE</b> at the Kohinoor's gangway. Everything you carry goes into the hold by itself, and a message confirms it. Near the dock, the <b>Load</b> button walks you there.</li>
+          <li>Any crate counts. The Kohinoor needs <b>8 crates for each player</b>, and at least 20 (quick game: 6 per player, at least 12). The bar at the top shows how many are aboard.</li>
+          <li>The hold never fills up. Once the Kohinoor has enough crates, each extra one you load still pays you <b>2 pearls</b>.</li>
           <li>About 10 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
           <li>Every wave also puts <b>1 crate with your name</b> near you. Only you can pick it up. It usually holds something <b>another player's order</b> needs, so it's good to trade. Gold pointers at the edge of the screen lead to the nearest crates.</li>
           <li>Seven buildings have a glowing doorstep: the Hospital (by the gardens), the Palace, the Grand Hotel, the Lighthouse, the Royal Stables, the Shipwreck and the Pearl Market Shop. Tap <b>Enter</b> at the door to go in and pick up what's inside, and <b>Go outside</b> to leave. They restock every tide. When the sea reaches a door, that building floods and closes for good. Bots never go inside.</li>
@@ -150,8 +150,8 @@ function FullRules() {
       <section>
         <h4>7. Pearls, diamonds and your fortune</h4>
         <ul>
-          <li>Your fortune is your pearls plus <b>3 for every diamond</b> you loaded (or carried onto the pier). It only counts if the ferry makes it and you're aboard.</li>
-          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves, some crates, filled orders (+6), and extra crates you load once the ferry has enough (+2 each).</li>
+          <li>Your fortune is your pearls plus <b>3 for every diamond</b> you loaded (or carried onto the pier). It only counts if the Kohinoor makes it and you're aboard.</li>
+          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves, some crates, filled orders (+6), and extra crates you load once the Kohinoor has enough (+2 each).</li>
           <li>The Pearl Market sells a supply crate for 3 pearls (3 crates a tide). The merchant sometimes says no; just ask again.</li>
           <li>Two diamonds turn up each tide. Three more lie in the sealed Sapphire Caves: carry the Antique Compass from the palace to the cave door to open it.</li>
           <li>Light the lighthouse lamp (once a tide) to show every crate on the map for 45 seconds and reveal a hidden stepping-stone path.</li>
@@ -163,7 +163,7 @@ function FullRules() {
       </section>
       <section>
         <h4>9. Sailing</h4>
-        <p>Be on the wooden pier when the ferry leaves. Anyone off the pier is left behind and their fortune is lost. The ferry won't wait.</p>
+        <p>Be on the wooden pier when the Kohinoor leaves. Anyone off the pier is left behind and their fortune is lost. The Kohinoor won't wait.</p>
       </section>
       <section>
         <h4>10. Characters</h4>
@@ -174,9 +174,9 @@ function FullRules() {
       <section>
         <h4>11. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
         <ul>
-          <li>One player (two with 7 or more) is secretly a Wrecker. Wreckers win if the ferry sinks.</li>
-          <li>Only the Wrecker sees a secret <b>Sink a crate</b> button, on the LOAD HERE circle by the ferry. Each tap throws one crate overboard (the bar drops by 1) with a splash, every 45 seconds at most. Watch who's standing at the ferry when you hear it.</li>
-          <li>Each player can accuse someone once per game. If a majority votes yes, the accused is locked in the ferry's brig and their cargo spills on the pier.</li>
+          <li>One player (two with 7 or more) is secretly a Wrecker. Wreckers win if the Kohinoor sinks.</li>
+          <li>Only the Wrecker sees a secret <b>Sink a crate</b> button, on the LOAD HERE circle by the Kohinoor. Each tap throws one crate overboard (the bar drops by 1) with a splash, every 45 seconds at most. Watch who's standing at the Kohinoor when you hear it.</li>
+          <li>Each player can accuse someone once per game. If a majority votes yes, the accused is locked in the Kohinoor's brig and their cargo spills on the pier.</li>
         </ul>
       </section>
     </div>

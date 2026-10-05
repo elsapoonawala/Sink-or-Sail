@@ -90,7 +90,7 @@ export function Game({ v }: { v: GameView }) {
     loadedRef.current = myHold.length;
     if (prev === null || myHold.length <= prev) return;
     const added = myHold.slice(prev).map((c) => c.kind);
-    toast(v.loaded >= v.goal ? `Loaded ${added.join(", ")}. The ferry has ${v.loaded} crates: enough to sail!` : `Loaded ${added.join(", ")}. The ferry has ${v.loaded} of ${v.goal} crates.`);
+    toast(v.loaded >= v.goal ? `Loaded ${added.join(", ")}. The Kohinoor has ${v.loaded} crates: enough to sail!` : `Loaded ${added.join(", ")}. The Kohinoor has ${v.loaded} of ${v.goal} crates.`);
   }, [myHold.length]);
   // The intro card shows your character, then gets out of the way.
   useEffect(() => {
@@ -141,7 +141,7 @@ export function Game({ v }: { v: GameView }) {
     const cargo = me.carry.filter((c) => c.kind !== "cutlass");
     const toGangway = Math.hypot(pos.x - GANGWAY.x, pos.y - GANGWAY.y);
     if (cargo.length && !nearGangway(pos) && toGangway < 700) {
-      actions.push({ key: "load", label: `Load ${cargo.length} crate${cargo.length > 1 ? "s" : ""} onto the ferry`, sub: "Walks you onto the gold gangway", onClick: () => api.current?.walkTo(GANGWAY.x, GANGWAY.y), tone: "primary" });
+      actions.push({ key: "load", label: `Load ${cargo.length} crate${cargo.length > 1 ? "s" : ""} onto the Kohinoor`, sub: "Walks you onto the gold gangway", onClick: () => api.current?.walkTo(GANGWAY.x, GANGWAY.y), tone: "primary" });
     }
     if (onDock(pos.x, pos.y)) actions.push({ key: "ready", label: me.ready ? "Not ready yet" : "Ready to sail", sub: me.ready ? "Tap to wait longer" : "Sails when most are ready", onClick: () => act({ type: "ready", ready: !me.ready }), tone: me.ready ? "ghost" : "primary" });
   }
@@ -162,20 +162,20 @@ export function Game({ v }: { v: GameView }) {
   const left = Math.max(0, v.goal - v.loaded);
   const onlyBlade = me.carry.length > 0 && nearGangway(pos) && me.carry.every((c) => c.kind === "cutlass");
   let hint = "";
-  if (me.brig) hint = "You're locked in the ferry's brig. You'll sail, but you can't help or hinder.";
+  if (me.brig) hint = "You're locked in the Kohinoor's brig. You'll sail, but you can't help or hinder.";
   else if (down) hint = `Knocked out! You're back on your feet in ${Math.ceil((me.downUntil - now) / 1000)}s.`;
   else if (busy) hint = "Diving…";
-  else if (buildingAt(pos.x, pos.y) && me.carry.length >= carryLimit(me)) hint = "Hands full. Tap Go outside and take it to the ferry.";
+  else if (buildingAt(pos.x, pos.y) && me.carry.length >= carryLimit(me)) hint = "Hands full. Tap Go outside and take it to the Kohinoor.";
   else if (buildingAt(pos.x, pos.y)) hint = `You're inside ${buildingAt(pos.x, pos.y)!.name}. Walk into anything glowing to take it, then tap Go outside.`;
   else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
-  else if (v.sailAt) hint = `The ferry sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
+  else if (v.sailAt) hint = `The Kohinoor sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";
   else if (onlyBlade) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
-  else if (full) hint = "Hands full. Follow the gold arrow to the ferry and step onto the LOAD HERE circle.";
-  else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the ferry. Your crates go in by themselves.";
+  else if (full) hint = "Hands full. Follow the gold arrow to the Kohinoor and step onto the LOAD HERE circle.";
+  else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the Kohinoor. Your crates go in by themselves.";
   else if (orderTip) hint = orderTip;
-  else if (left) hint = `Find glowing crates. The ferry needs ${left} more or she sinks.`;
-  else hint = "The ferry has enough crates! Extra ones pay you pearls. Be on the pier when she sails.";
+  else if (left) hint = `Find glowing crates. The Kohinoor needs ${left} more or she sinks.`;
+  else hint = "The Kohinoor has enough crates! Extra ones pay you pearls. Be on the pier when she sails.";
 
   const lampOn = now < v.lampUntil;
   // Phones show only urgent news; everything else lives in the hint line.
@@ -200,14 +200,14 @@ export function Game({ v }: { v: GameView }) {
           ))}
         </div>
         <p className="tide-next small">
-          {sailing ? "The Saltmere Queen is leaving." : lastTide ? "When this runs out, the ferry leaves." : nextFloods.length ? `Next tide floods ${nextFloods.join(" & ")}` : "The water keeps rising."}
+          {sailing ? "The Kohinoor is leaving." : lastTide ? "When this runs out, the Kohinoor leaves." : nextFloods.length ? `Next tide floods ${nextFloods.join(" & ")}` : "The water keeps rising."}
         </p>
         {!sailing && waveAt && <p className="tide-next small wave">Next crates wash up in {mmss(waveAt - now)}</p>}
         {lampOn && <p className="tide-next small lamp">Lighthouse lit: every crate shows on the map.</p>}
       </section>
 
-      {/* top centre: the ferry's hold */}
-      <section className="hud-hold" aria-label="The ferry's hold">
+      {/* top centre: the Kohinoor's hold */}
+      <section className="hud-hold" aria-label="The Kohinoor's hold">
         <div className={`goal-bar ${v.loaded >= v.goal ? "ok" : ""}`} title={`${v.loaded} of ${v.goal} crates aboard`}>
           <span className="goal-label">{v.loaded >= v.goal ? "Ready to sail" : "Load or sink"}</span>
           <span className="goal-track"><span style={{ width: `${Math.min(100, (v.loaded / v.goal) * 100)}%` }} /></span>
@@ -234,7 +234,7 @@ export function Game({ v }: { v: GameView }) {
       </ol>
 
       {/* banners */}
-      {v.sailAt && <div className="banner sail">The ferry sails in {Math.ceil((v.sailAt - now) / 1000)}s</div>}
+      {v.sailAt && <div className="banner sail">The Kohinoor sails in {Math.ceil((v.sailAt - now) / 1000)}s</div>}
       {v.vote?.outcome === "open" && <VoteCard v={v} now={now} />}
       <div className="hud-offers"><OffersTray v={v} /></div>
       {v.phase === "play" && v.tide === 1 && !me.brig && !intro && <FirstSteps v={v} />}
@@ -246,7 +246,7 @@ export function Game({ v }: { v: GameView }) {
             <h3>{ROLE_INFO[me.role].name}</h3>
             <p className="small">{ROLE_INFO[me.role].power}</p>
             {me.wrecker && <p className="small wreck-note">…and secretly the <b>Wrecker</b>. Sink crates at the gangway without being caught.</p>}
-            <p className="small muted">Walk with WASD, arrows, a click, or drag on your phone. Scroll or pinch to zoom out. Grab glowing crates and carry them to the ferry.</p>
+            <p className="small muted">Walk with WASD, arrows, a click, or drag on your phone. Scroll or pinch to zoom out. Grab glowing crates and carry them to the Kohinoor.</p>
           </div>
         </div>
       )}
@@ -371,7 +371,7 @@ function FirstSteps({ v }: { v: GameView }) {
   if (hidden || (pick && load && order && trade)) return null;
   const steps = [
     { ok: pick, text: "Walk into a glowing crate to pick it up" },
-    { ok: load, text: "Step onto the gold LOAD HERE circle by the ferry" },
+    { ok: load, text: "Step onto the gold LOAD HERE circle by the Kohinoor" },
     { ok: order, text: "Check your secret order above your hands" },
     { ok: trade, text: "Tap Trade and swap with someone" },
   ];

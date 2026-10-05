@@ -199,7 +199,7 @@ export class Rooms {
         }
         if (!err) {
           room.brains = new Map(s.players.filter((p) => p.bot).map((p) => [p.id, newBrain()]));
-          this.systemChat(room, "The tide is turning. Load enough crates onto the ferry, or she sinks.");
+          this.systemChat(room, "The tide is turning. Load enough crates onto the Kohinoor, or she sinks.");
         }
         break;
       case "lobby":

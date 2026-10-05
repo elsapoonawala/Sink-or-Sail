@@ -479,7 +479,7 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   // The island starts well stocked: the first two waves are already waiting.
   spawnTide(s, rng, now, 0);
   spawnTide(s, rng, now, 1);
-  log(s, "The tide is turning. Load the ferry and get aboard before the last tide.", "flood");
+  log(s, "The tide is turning. Load the Kohinoor and get aboard before the last tide.", "flood");
   if (wreckers.size) log(s, wreckers.size > 1 ? "Two Wreckers are hiding among you." : "A Wrecker is hiding among you.", "alert");
   return null;
 }
@@ -686,7 +686,7 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
       const drowned = ZONE_IDS.filter((z) => depthAt(ZONES[z].x, ZONES[z].y, seaLevel(s.tide, 0, s.totalTides, now)) > 0 && depthAt(ZONES[z].x, ZONES[z].y, seaLevel(s.tide - 1, 0, s.totalTides, now)) <= 0);
       fx(s, "tide", 0, 0);
       log(s, `Tide ${s.tide} of ${s.totalTides} is rising${drowned.length ? `: ${drowned.map((z) => ZONES[z].name).join(" and ")} ${drowned.length > 1 ? "are" : "is"} going under` : ""}.`, "flood");
-      if (s.tide === s.totalTides) log(s, "Last tide. The ferry leaves when it runs out. Be on the pier.", "alert");
+      if (s.tide === s.totalTides) log(s, "Last tide. The Kohinoor leaves when it runs out. Be on the pier.", "alert");
       spawnTide(s, rng, now, 0);
       dealOrders(s, rng);
     }
@@ -755,7 +755,7 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
     const wantSail = ready * 2 > s.players.length;
     if (wantSail && s.sailAt === null) {
       s.sailAt = now + SAIL_COUNTDOWN;
-      log(s, "Most of you are ready. The ferry sails in 15 seconds. Run for the pier!", "alert");
+      log(s, "Most of you are ready. The Kohinoor sails in 15 seconds. Run for the pier!", "alert");
     } else if (!wantSail && s.sailAt !== null) {
       s.sailAt = null;
       log(s, "Departure called off. Not enough people are ready.", "info");
@@ -869,7 +869,7 @@ function sail(s: GameState, now: number, early: boolean) {
     early,
   };
   const left = fortunes.filter((f) => !f.aboard).map((f) => player(s, f.id)!.name);
-  log(s, `The ferry casts off${left.length ? `, leaving ${left.join(", ")} behind` : " with everyone aboard"}.`, "alert");
+  log(s, `The Kohinoor casts off${left.length ? `, leaving ${left.join(", ")} behind` : " with everyone aboard"}.`, "alert");
   s.version++;
 }
 
@@ -941,7 +941,7 @@ export function barter(s: GameState, pid: string, kind: Supply, now: number, rng
   if (!SUPPLIES.includes(kind)) return "The merchant only sells supplies.";
   if (s.marketStock <= 0) return "The merchant is sold out until the next tide.";
   if (p.pearls < BARTER_COST) return `The merchant wants ${BARTER_COST} pearls.`;
-  if (p.carry.length >= carryLimit(p)) return "Your hands are full. Load the ferry first.";
+  if (p.carry.length >= carryLimit(p)) return "Your hands are full. Load the Kohinoor first.";
   if (now - p.lastBarter < 5000) return "The merchant is still counting your last pearls.";
   p.lastBarter = now;
   if (p.role !== "jeweler" && rng() < 0.3) {
@@ -982,7 +982,7 @@ export function dump(s: GameState, pid: string, now: number, rng: Rng): string |
   s.hold = s.hold.filter((c) => c.id !== victim.id);
   p.lastDump = now;
   fx(s, "splash", GANGWAY.x + 30, GANGWAY.y + 40);
-  log(s, "Splash! A crate went over the side of the ferry. Who was standing there?", "alert");
+  log(s, "Splash! A crate went over the side of the Kohinoor. Who was standing there?", "alert");
   return null;
 }
 
@@ -1074,7 +1074,7 @@ function settleVote(s: GameState, now: number, force: boolean) {
     t.x = 1300;
     t.y = 1520;
     fx(s, "brig", t.x, t.y, t.id);
-    log(s, `${t.name} is locked in the ferry's brig. ${t.wrecker ? "They WERE a Wrecker!" : "They were innocent."}`, "alert");
+    log(s, `${t.name} is locked in the Kohinoor's brig. ${t.wrecker ? "They WERE a Wrecker!" : "They were innocent."}`, "alert");
   } else {
     v.outcome = "freed";
     log(s, `Not enough votes. ${t.name} stays free.`, "info");

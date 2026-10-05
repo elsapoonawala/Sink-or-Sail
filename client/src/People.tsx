@@ -98,12 +98,12 @@ export function PlayerSheet({ v, pid, onClose, onTrade }: { v: GameView; pid: st
 export function Allegiance({ wrecker, count }: { wrecker: boolean; count: number }) {
   return wrecker ? (
     <div className="allegiance wrecker">
-      <b>You are the Wrecker.</b> You win if the ferry sails short of supplies. Stand at the gangway to sink a crate when no one is watching, and don't get voted into the brig.
+      <b>You are the Wrecker.</b> You win if the Kohinoor sails short of supplies. Stand at the gangway to sink a crate when no one is watching, and don't get voted into the brig.
       {count > 1 && " Your fellow Wrecker is marked for you."}
     </div>
   ) : (
     <div className="allegiance islander">
-      <b>You are an Islander.</b> Load the ferry and be on the pier when it sails.{" "}
+      <b>You are an Islander.</b> Load the Kohinoor and be on the pier when it sails.{" "}
       {count ? `Careful: ${count === 1 ? "one player is a secret Wrecker" : "two players are secret Wreckers"} who will sink crates at the gangway.` : "Everyone is on your side this game."}
     </div>
   );

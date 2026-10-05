@@ -443,7 +443,7 @@ export function drawFerry(ctx: CanvasRenderingContext2D, t: number, fill: number
   ctx.fillStyle = "#f3ece0";
   ctx.font = "italic 700 13px Georgia, serif";
   ctx.textAlign = "center";
-  ctx.fillText("Saltmere Queen", 0, 22);
+  ctx.fillText("The Kohinoor", 0, 22);
   ctx.restore();
 }
 

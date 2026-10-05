@@ -43,7 +43,7 @@ export function Home() {
           <span className="eyebrow">1 to 8 players · no sign-up</span>
           <h1>Sink <em>or</em> Sail</h1>
           <p className="ornament" aria-hidden="true"><span />✦<span /></p>
-          <p className="lede">The tide is rising over Saltmere. Race your friends across the island on foot and on horseback, haul fuel, medicine and tools to the old ferry, and grab diamonds before the sea takes them. Be on the pier when she sails.</p>
+          <p className="lede">The tide is rising over Saltmere. Race your friends across the island on foot and on horseback, haul fuel, medicine and tools to the old ferry, the Kohinoor, and grab diamonds before the sea takes them. Be on the pier when she sails.</p>
         </header>
 
         <div className="home-card">
@@ -53,7 +53,7 @@ export function Home() {
             {invited ? (
               <>
                 <p className="invite">You're invited to room <b>{code}</b>.</p>
-                <button className="btn primary big" type="submit" disabled={busy || !connected}>Board the ferry</button>
+                <button className="btn primary big" type="submit" disabled={busy || !connected}>Board the Kohinoor</button>
               </>
             ) : (
               <div className="home-actions">
