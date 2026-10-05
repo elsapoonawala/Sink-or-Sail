@@ -2,7 +2,7 @@
 // the harbour and islanders going about their business.
 import { useEffect, useRef } from "react";
 import type { Kind, Role } from "../../shared/game";
-import { H, W, ZONES, type ZoneId, findPath } from "../../shared/world";
+import { H, S, W, ZONES, type ZoneId, findPath } from "../../shared/world";
 import {
   type Prop, drawCrate, drawDock, drawFerry, drawGlints, drawItem, drawLandmarks, drawPerson, drawProp, drawRoads,
   paintTerrain, paintWater, scatterProps, seaColor,
@@ -31,11 +31,11 @@ const CAST: Omit<Walker, "path" | "leg" | "x" | "y" | "dir">[] = [
   { role: "jeweler", seat: 5, mounted: false, carry: ["fuel"], route: ["harbour", "palace", "stables"], speed: 52 },
 ];
 
-const SCENERY_CRATES: { kind: Kind; x: number; y: number }[] = [
+const SCENERY_CRATES = ([
   { kind: "fuel", x: 1080, y: 1210 }, { kind: "medicine", x: 1400, y: 1180 }, { kind: "tools", x: 900, y: 1010 },
   { kind: "diamond", x: 1300, y: 760 }, { kind: "fuel", x: 1640, y: 1110 }, { kind: "cutlass", x: 760, y: 1180 },
   { kind: "medicine", x: 1010, y: 760 }, { kind: "tools", x: 1500, y: 1290 },
-];
+] as { kind: Kind; x: number; y: number }[]).map((c) => ({ ...c, x: c.x * S, y: c.y * S }));
 
 export function HomeScene() {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -98,8 +98,8 @@ export function HomeScene() {
       const scale = Math.max(0.5, Math.min(1, Math.max(vw / 1700, vh / 1150)));
       // A slow drift over the harbour, the stables and the palace hill.
       const a = t / 26000;
-      const cx = Math.max(vw / 2 / scale, Math.min(W - vw / 2 / scale, 1250 + Math.sin(a) * 260));
-      const cy = Math.max(vh / 2 / scale, Math.min(H + 120 - vh / 2 / scale, 1180 + Math.sin(a * 0.7 + 1) * 90));
+      const cx = Math.max(vw / 2 / scale, Math.min(W - vw / 2 / scale, 1250 * S + Math.sin(a) * 360));
+      const cy = Math.max(vh / 2 / scale, Math.min(H + 120 - vh / 2 / scale, 1180 * S + Math.sin(a * 0.7 + 1) * 120));
 
       for (const w of walkers) {
         if (still) break;

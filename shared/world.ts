@@ -1,8 +1,13 @@
 // The island: terrain, places and the rising tide.
 // Pure functions shared by the server (authoritative movement) and the client (drawing).
 
-export const W = 2400;
-export const H = 1600;
+/** The island was drawn at 2400x1600 and is laid out at this scale (twice the area). */
+export const S = Math.SQRT2;
+const sc = (n: number) => Math.round(n * S);
+const sp = <T extends { x: number; y: number }>(p: T): T => ({ ...p, x: sc(p.x), y: sc(p.y) });
+
+export const W = sc(2400);
+export const H = sc(1600);
 
 export type ZoneId =
   | "harbour" | "coves" | "shipwreck" | "market" | "gardens"
@@ -16,7 +21,7 @@ export interface Zone {
   blurb: string;
 }
 
-export const ZONES: Record<ZoneId, Zone> = {
+const ZONES0: Record<ZoneId, Zone> = {
   harbour: { name: "The Harbour", x: 1160, y: 1300, r: 150, blurb: "Fuel and tools on the quay. Floods mid-game." },
   coves: { name: "Turquoise Coves", x: 430, y: 900, r: 170, blurb: "Dive for pearls. Among the first to go under." },
   shipwreck: { name: "The Shipwreck", x: 640, y: 1250, r: 130, blurb: "A diamond in the hold. Floods first." },
@@ -28,6 +33,9 @@ export const ZONES: Record<ZoneId, Zone> = {
   caves: { name: "Sapphire Caves", x: 1180, y: 215, r: 110, blurb: "Sealed. The compass opens the door." },
   stables: { name: "Royal Stables", x: 960, y: 880, r: 80, blurb: "Saddle a horse and ride twice as fast." },
 };
+export const ZONES = Object.fromEntries(
+  Object.entries(ZONES0).map(([id, z]) => [id, { ...sp(z), r: sc(z.r) }]),
+) as Record<ZoneId, Zone>;
 export const ZONE_IDS = Object.keys(ZONES) as ZoneId[];
 
 // ---------- terrain ----------
@@ -63,27 +71,27 @@ const BASINS: Mound[] = [
 ];
 
 /** Hidden stepping stones from the lighthouse to the Hotel road, walkable once found. */
-export const SECRET_PATH = { x1: 2170, y1: 760, x2: 1840, y2: 520, w: 22 };
+export const SECRET_PATH = { x1: sc(2170), y1: sc(760), x2: sc(1840), y2: sc(520), w: 22 };
 
 /** The pier and landing stage: always above water. */
-export const DOCK = { x1: 1218, y1: 1360, x2: 1282, y2: 1500 };
-export const LANDING = { x1: 1170, y1: 1468, x2: 1400, y2: 1508 };
+export const DOCK = { x1: sc(1218), y1: sc(1360), x2: sc(1218) + 64, y2: sc(1500) };
+export const LANDING = { x1: sc(1170), y1: sc(1468), x2: sc(1400), y2: sc(1468) + 40 };
 /** Where cargo is loaded aboard. */
-export const GANGWAY = { x: 1340, y: 1488, r: 46 };
-export const FERRY = { x: 1290, y: 1602 };
+export const GANGWAY = { ...sp({ x: 1340, y: 1488 }), r: 46 };
+export const FERRY = sp({ x: 1290, y: 1602 });
 
 /** The sealed cave chamber; walls you can't enter until the compass opens the door. */
-export const CAVE = { x: 1180, y: 200, r: 72 };
-export const CAVE_DOOR = { x: 1182, y: 272 };
+export const CAVE = { ...sp({ x: 1180, y: 200 }), r: 72 };
+export const CAVE_DOOR = { x: CAVE.x + 2, y: CAVE.y + 72 };
 
-export const STABLE_POS = { x: 960, y: 880 };
-export const MARKET_STALL = { x: 1770, y: 1045 };
-export const LAMP = { x: 2200, y: 785 };
+export const STABLE_POS = sp({ x: 960, y: 880 });
+export const MARKET_STALL = sp({ x: 1770, y: 1045 });
+export const LAMP = sp({ x: 2200, y: 785 });
 export const DIVE_SPOTS = [
   { x: 300, y: 860 },
   { x: 290, y: 960 },
   { x: 340, y: 1010 },
-];
+].map(sp);
 
 function smooth(t: number) {
   return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
@@ -140,6 +148,10 @@ function valueNoise(x: number, y: number) {
 
 /** Height above the original sea level. Negative is open sea. */
 export function elevation(x: number, y: number): number {
+  return elevation0(x / S, y / S);
+}
+
+function elevation0(x: number, y: number): number {
   // The coastline is drawn through a gentle warp so it wanders like a real shore.
   const wx = x + (valueNoise(x / 260 + 7.3, y / 260) - 0.5) * 230 + (valueNoise(x / 90, y / 90 + 3.1) - 0.5) * 50;
   const wy = y + (valueNoise(x / 260, y / 260 + 11.7) - 0.5) * 190 + (valueNoise(x / 90 + 5.2, y / 90) - 0.5) * 40;
@@ -383,7 +395,7 @@ export function findPath(ax: number, ay: number, bx: number, by: number, g: Grou
     if (closed[k]) continue;
     closed[k] = 1;
     if (k === goal) break;
-    if (++expanded > 6000) return null;
+    if (++expanded > 15000) return null;
     const i = k % PW;
     const j = (k - i) / PW;
     for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
@@ -439,7 +451,7 @@ export interface Building {
 }
 
 /** Rooms start here; nothing on the island is this far east. */
-export const INTERIOR_X = 3000;
+export const INTERIOR_X = 4000;
 const ROOM_W = 640;
 const ROOM_H = 420;
 
@@ -454,13 +466,13 @@ function spotsIn(i: number, pts: [number, number][]) {
 }
 
 export const BUILDINGS: Building[] = [
-  { id: "hospital", name: "Island Hospital", door: { x: 720, y: 425 }, room: room(0), spots: spotsIn(0, [[0.18, 0.3], [0.38, 0.3], [0.62, 0.3], [0.82, 0.3], [0.12, 0.62]]) },
-  { id: "palace", name: "Hilltop Palace", door: { x: 1200, y: 662 }, room: room(1), spots: spotsIn(1, [[0.5, 0.24], [0.2, 0.45], [0.8, 0.45]]) },
-  { id: "hotel", name: "Grand Hotel", door: { x: 1760, y: 518 }, room: room(2), spots: spotsIn(2, [[0.16, 0.32], [0.84, 0.3], [0.3, 0.6], [0.7, 0.6]]) },
-  { id: "lighthouse", name: "The Lighthouse", door: { x: 2200, y: 815 }, room: room(3), spots: spotsIn(3, [[0.2, 0.35], [0.8, 0.35], [0.22, 0.65]]), station: { ...spotsIn(3, [[0.5, 0.3]])[0], kind: "lamp" } },
-  { id: "stables", name: "Royal Stables", door: { x: 960, y: 888 }, room: room(4), spots: spotsIn(4, [[0.15, 0.62], [0.85, 0.62], [0.5, 0.25]]), station: { ...spotsIn(4, [[0.3, 0.3]])[0], kind: "saddle" } },
-  { id: "shipwreck", name: "The Shipwreck", door: { x: 630, y: 1285 }, room: room(5), spots: spotsIn(5, [[0.2, 0.4], [0.5, 0.3], [0.8, 0.45], [0.35, 0.68]]) },
-  { id: "market", name: "Pearl Market Shop", door: { x: 1850, y: 1030 }, room: room(6), spots: spotsIn(6, [[0.18, 0.32], [0.82, 0.32], [0.25, 0.66]]), station: { ...spotsIn(6, [[0.5, 0.36]])[0], kind: "counter" } },
+  { id: "hospital", name: "Island Hospital", door: sp({ x: 720, y: 425 }), room: room(0), spots: spotsIn(0, [[0.18, 0.3], [0.38, 0.3], [0.62, 0.3], [0.82, 0.3], [0.12, 0.62]]) },
+  { id: "palace", name: "Hilltop Palace", door: sp({ x: 1200, y: 662 }), room: room(1), spots: spotsIn(1, [[0.5, 0.24], [0.2, 0.45], [0.8, 0.45]]) },
+  { id: "hotel", name: "Grand Hotel", door: sp({ x: 1760, y: 518 }), room: room(2), spots: spotsIn(2, [[0.16, 0.32], [0.84, 0.3], [0.3, 0.6], [0.7, 0.6]]) },
+  { id: "lighthouse", name: "The Lighthouse", door: sp({ x: 2200, y: 815 }), room: room(3), spots: spotsIn(3, [[0.2, 0.35], [0.8, 0.35], [0.22, 0.65]]), station: { ...spotsIn(3, [[0.5, 0.3]])[0], kind: "lamp" } },
+  { id: "stables", name: "Royal Stables", door: sp({ x: 960, y: 888 }), room: room(4), spots: spotsIn(4, [[0.15, 0.62], [0.85, 0.62], [0.5, 0.25]]), station: { ...spotsIn(4, [[0.3, 0.3]])[0], kind: "saddle" } },
+  { id: "shipwreck", name: "The Shipwreck", door: sp({ x: 630, y: 1285 }), room: room(5), spots: spotsIn(5, [[0.2, 0.4], [0.5, 0.3], [0.8, 0.45], [0.35, 0.68]]) },
+  { id: "market", name: "Pearl Market Shop", door: sp({ x: 1850, y: 1030 }), room: room(6), spots: spotsIn(6, [[0.18, 0.32], [0.82, 0.32], [0.25, 0.66]]), station: { ...spotsIn(6, [[0.5, 0.36]])[0], kind: "counter" } },
 ];
 
 export const BUILDING: Record<BuildingId, Building> = Object.fromEntries(BUILDINGS.map((b) => [b.id, b])) as Record<BuildingId, Building>;

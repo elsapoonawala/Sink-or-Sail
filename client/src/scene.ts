@@ -3,7 +3,7 @@
 
 import type { Kind, Role } from "../../shared/game";
 import {
-  CAVE, CAVE_DOOR, DIVE_SPOTS, DOCK, FERRY, GANGWAY, H, LAMP, LANDING, MARKET_STALL, SECRET_PATH, STABLE_POS, W, elev,
+  BUILDING, CAVE, CAVE_DOOR, DIVE_SPOTS, DOCK, FERRY, GANGWAY, H, LAMP, LANDING, MARKET_STALL, SECRET_PATH, STABLE_POS, S, W, elev,
 } from "../../shared/world";
 
 export const RES = 3; // world units per terrain pixel
@@ -160,15 +160,18 @@ export function scatterProps(): Prop[] {
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const keepClear = [
     { x: 1200, y: 610, r: 150 }, { x: 1760, y: 450, r: 120 }, { x: 1770, y: 1045, r: 90 }, { x: 2200, y: 790, r: 50 },
-    { x: 960, y: 865, r: 80 }, { x: 600, y: 1310, r: 110 }, { x: CAVE.x, y: CAVE.y + 10, r: 110 }, { x: 1250, y: 1330, r: 70 },
-  ];
-  for (let n = 0; n < 900 && out.length < 270; n++) {
+    { x: 960, y: 865, r: 80 }, { x: 600, y: 1310, r: 110 }, { x: CAVE.x / S, y: CAVE.y / S + 10, r: 110 }, { x: 1250, y: 1330, r: 70 },
+  ].map((k) => ({ x: k.x * S, y: k.y * S, r: k.r * S }));
+  for (let n = 0; n < 1800 && out.length < 540; n++) {
     const x = 120 + rnd() * (W - 240);
     const y = 120 + rnd() * (H - 240);
     const e = elev(x, y);
     if (e < 0.35) continue;
     if (keepClear.some((k) => Math.hypot(x - k.x, y - k.y) < k.r)) continue;
-    if (Math.abs(x - 1225 - ((y - 700) / 692) * 45) < 40 && y > 680 && y < 1400) continue; // causeway
+    if (x > DOCK.x1 - 40 && x < DOCK.x2 + 40 && y > DOCK.y1 - 60) continue; // the pier
+    const ux = x / S;
+    const uy = y / S;
+    if (Math.abs(ux - 1225 - ((uy - 700) / 692) * 45) < 40 && uy > 680 && uy < 1400) continue; // causeway
     const r = rnd();
     let kind: Prop["kind"];
     if (e < 1.6) kind = r < 0.55 ? "palm" : r < 0.75 ? "flower" : r < 0.85 ? "rock" : "palm";
@@ -178,7 +181,7 @@ export function scatterProps(): Prop[] {
   }
   // Harbour cottages either side of the causeway.
   const houses = [[1100, 1250], [1150, 1215], [1330, 1240], [1380, 1290], [1090, 1330], [1360, 1345], [1175, 1355]];
-  for (const [x, y] of houses) out.push({ kind: "house", x, y, s: 1, v: (x * 7 + y) % 5 / 5 });
+  for (const [x, y] of houses.map(([hx, hy]) => [hx * S, hy * S])) out.push({ kind: "house", x, y, s: 1, v: (x * 7 + y) % 5 / 5 });
   return out;
 }
 
@@ -292,7 +295,7 @@ export function drawRoads(ctx: CanvasRenderingContext2D, secret: boolean, t: num
     [1100, 610, 720, 500, 16],
     [1195, 520, 1185, 300, 18],
     [1960, 860, 2190, 806, 14],
-  ];
+  ].map(([x1, y1, x2, y2, w]) => [x1 * S, y1 * S, x2 * S, y2 * S, w] as [number, number, number, number, number]);
   ctx.lineCap = "round";
   for (const [x1, y1, x2, y2, w] of roads) {
     ctx.strokeStyle = "rgba(90,70,45,.35)";
@@ -495,15 +498,15 @@ export function drawGangway(ctx: CanvasRenderingContext2D, t: number, active: bo
 
 // ---------- landmarks ----------
 
-export function drawLandmarks(ctx: CanvasRenderingContext2D, t: number, lampLit: boolean, caveOpen: boolean, level: number, horses = 2) {
+export function drawLandmarks(ctx: CanvasRenderingContext2D, t: number, lampLit: boolean, caveOpen: boolean, level: number, horses = 3) {
   const out: { y: number; draw: () => void }[] = [];
-  out.push({ y: 660, draw: () => palace(ctx, t) });
-  out.push({ y: 500, draw: () => hotel(ctx) });
+  out.push({ y: BUILDING.palace.door.y - 2, draw: () => palace(ctx, t) });
+  out.push({ y: BUILDING.hotel.door.y - 18, draw: () => hotel(ctx) });
   out.push({ y: MARKET_STALL.y + 10, draw: () => market(ctx) });
   out.push({ y: LAMP.y + 20, draw: () => lighthouse(ctx, t, lampLit) });
   out.push({ y: STABLE_POS.y - 10, draw: () => stables(ctx, t, horses) });
-  out.push({ y: 470, draw: () => gazebo(ctx) });
-  out.push({ y: 1330, draw: () => wreck(ctx, level) });
+  out.push({ y: 470 * S, draw: () => gazebo(ctx) });
+  out.push({ y: BUILDING.shipwreck.door.y + 45, draw: () => wreck(ctx, level) });
   out.push({ y: CAVE_DOOR.y, draw: () => cave(ctx, caveOpen) });
   for (const [i, d] of DIVE_SPOTS.entries()) out.push({ y: d.y, draw: () => buoy(ctx, d.x, d.y, t, i) });
   return out;
@@ -511,7 +514,7 @@ export function drawLandmarks(ctx: CanvasRenderingContext2D, t: number, lampLit:
 
 function palace(ctx: CanvasRenderingContext2D, t: number) {
   ctx.save();
-  ctx.translate(1200, 640);
+  ctx.translate(BUILDING.palace.door.x, BUILDING.palace.door.y - 22);
   shadow(ctx, 0, 6, 120, 18);
   // terrace
   ctx.fillStyle = "#e8dcc2";
@@ -574,7 +577,7 @@ function palace(ctx: CanvasRenderingContext2D, t: number) {
 
 function hotel(ctx: CanvasRenderingContext2D) {
   ctx.save();
-  ctx.translate(1760, 500);
+  ctx.translate(BUILDING.hotel.door.x, BUILDING.hotel.door.y - 18);
   shadow(ctx, 0, 4, 100, 14);
   ctx.fillStyle = "#f2d7c4";
   ctx.fillRect(-90, -110, 180, 112);
@@ -714,8 +717,8 @@ function stables(ctx: CanvasRenderingContext2D, t: number, horses: number) {
   }
   ctx.restore();
   // The horses still waiting at the rail (they go as people saddle them).
-  const spots: [number, number, 1 | -1, string][] = [[-40, 22, 1, "#7a4a2a"], [44, 26, -1, "#f1ead9"], [2, 30, 1, "#3b2a20"]];
-  spots.slice(0, Math.max(0, Math.min(3, horses))).forEach(([dx, dy, f, c], i) => drawHorse(ctx, STABLE_POS.x + dx, STABLE_POS.y + dy, f, false, t + i * 500, c));
+  const spots: [number, number, 1 | -1, string][] = [[-40, 22, 1, "#7a4a2a"], [44, 26, -1, "#f1ead9"], [2, 30, 1, "#3b2a20"], [-78, 34, -1, "#a8703c"]];
+  spots.slice(0, Math.max(0, Math.min(4, horses))).forEach(([dx, dy, f, c], i) => drawHorse(ctx, STABLE_POS.x + dx, STABLE_POS.y + dy, f, false, t + i * 500, c));
   ctx.strokeStyle = "#6b4a2f";
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -726,7 +729,7 @@ function stables(ctx: CanvasRenderingContext2D, t: number, horses: number) {
 
 function gazebo(ctx: CanvasRenderingContext2D) {
   ctx.save();
-  ctx.translate(600, 470);
+  ctx.translate(600 * S, 470 * S);
   shadow(ctx, 0, 2, 40, 10);
   ctx.fillStyle = "#f3ece0";
   for (const x of [-30, -10, 10, 30]) ctx.fillRect(x - 3, -46, 6, 46);
@@ -751,7 +754,7 @@ function gazebo(ctx: CanvasRenderingContext2D) {
 
 function wreck(ctx: CanvasRenderingContext2D, level: number) {
   ctx.save();
-  ctx.translate(600, 1320);
+  ctx.translate(BUILDING.shipwreck.door.x - 30, BUILDING.shipwreck.door.y + 35);
   ctx.globalAlpha = level > 0.8 ? 0.55 : 1;
   ctx.rotate(-0.18);
   shadow(ctx, 0, 6, 80, 12);

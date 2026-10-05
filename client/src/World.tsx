@@ -72,7 +72,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
     }
 
     const startMe = viewRef.current.players.find((p) => p.id === viewRef.current.you);
-    const me = { x: startMe?.x ?? 1250, y: startMe?.y ?? 1300, dir: startMe?.dir ?? 0, moving: false };
+    const me = { x: startMe?.x ?? GANGWAY.x, y: startMe?.y ?? GANGWAY.y - 200, dir: startMe?.dir ?? 0, moving: false };
     const cam = { x: me.x, y: me.y };
     const others = new Map<string, Smooth>();
     const keys = new Set<string>();

@@ -1,6 +1,6 @@
 // Walk-in buildings: their doors on the island, two new outdoor buildings (the hospital and
 // the market shop), and the rooms you see once you step inside.
-import { BUILDINGS, type Building, type BuildingId, WALL, exitDoor } from "../../shared/world";
+import { BUILDING, BUILDINGS, type Building, type BuildingId, WALL, exitDoor } from "../../shared/world";
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -26,14 +26,14 @@ function shadow(ctx: Ctx, x: number, y: number, rx: number, ry: number) {
 /** The new buildings on the island, sorted with everything else by their base. */
 export function outdoorBuildings(ctx: Ctx): { y: number; draw: () => void }[] {
   return [
-    { y: 420, draw: () => hospital(ctx) },
-    { y: 1018, draw: () => shop(ctx) },
+    { y: BUILDING.hospital.door.y - 5, draw: () => hospital(ctx) },
+    { y: BUILDING.market.door.y - 12, draw: () => shop(ctx) },
   ];
 }
 
 function hospital(ctx: Ctx) {
   ctx.save();
-  ctx.translate(720, 418);
+  ctx.translate(BUILDING.hospital.door.x, BUILDING.hospital.door.y - 7);
   shadow(ctx, 0, 4, 78, 12);
   ctx.fillStyle = "#f7f3ea";
   ctx.fillRect(-66, -78, 132, 80);
@@ -65,7 +65,7 @@ function hospital(ctx: Ctx) {
 
 function shop(ctx: Ctx) {
   ctx.save();
-  ctx.translate(1850, 1016);
+  ctx.translate(BUILDING.market.door.x, BUILDING.market.door.y - 14);
   shadow(ctx, 0, 4, 52, 10);
   ctx.fillStyle = "#e9c99a";
   ctx.fillRect(-44, -56, 88, 58);

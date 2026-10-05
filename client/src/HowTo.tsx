@@ -15,7 +15,7 @@ const SLIDES = [
   },
   {
     title: "Walk anywhere",
-    body: "WASD or arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Scroll, pinch or use − and + to zoom out. Race for one of the 2 horses at the Royal Stables to ride faster, but don't gallop through water or you'll drop crates.",
+    body: "WASD or arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Scroll, pinch or use − and + to zoom out. Race for one of the 3 horses at the Royal Stables to ride faster, but don't gallop through water or you'll drop crates.",
     art: <div className="howto-keys"><kbd>W</kbd><div><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div></div>,
   },
   {
@@ -111,7 +111,7 @@ function FullRules() {
         <ul>
           <li>Laptop: WASD or arrow keys, or click where to go. Scroll to zoom.</li>
           <li>Phone: drag anywhere for a joystick, or tap where to go. Pinch to zoom. The − and + buttons by the map zoom too.</li>
-          <li>Walk up to the Royal Stables and tap <b>Saddle a horse</b> to ride much faster. Only <b>2 horses</b> wait there (3 with 6 or more players), so race for them. <b>Galloping through water shakes a crate loose</b>, so ride around it. A cutlass hit knocks a rider off, and the horse trots back to the stables.</li>
+          <li>Walk up to the Royal Stables and tap <b>Saddle a horse</b> to ride much faster. Only <b>3 horses</b> wait there (4 with 6 or more players), so race for them. <b>Galloping through water shakes a crate loose</b>, so ride around it. A cutlass hit knocks a rider off, and the horse trots back to the stables.</li>
           <li>Shallow water slows you down; deep water stops you.</li>
         </ul>
       </section>

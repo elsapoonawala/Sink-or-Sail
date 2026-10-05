@@ -3,7 +3,7 @@
 // real GameState, runs tick() ten times a second, and sends each player viewFor().
 
 import {
-  CAVE, CAVE_DOOR, DIVE_SPOTS, DOCK, GANGWAY, LAMP, MARKET_STALL, QUICK_TIDE_MS, STABLE_POS, TIDE_MS,
+  CAVE, CAVE_DOOR, DIVE_SPOTS, DOCK, FERRY, GANGWAY, INTERIOR_X, LAMP, MARKET_STALL, QUICK_TIDE_MS, STABLE_POS, TIDE_MS,
   BUILDINGS, H, W, ZONES, ZONE_IDS, type Building, type BuildingId, type Ground, type ZoneId, buildingAt, buildingOpen, depthAt,
   footing, insideDoor, nearestFooting, onDock, outdoorPos, seaLevel, zoneAt,
 } from "./world";
@@ -51,7 +51,7 @@ export const GOLDEN_FIRST_MS = 35_000;
 export const GOLDEN_GAP_MS = 40_000;
 /** Horses waiting at the stables: few enough that people race for them. */
 export function stableHorsesFor(players: number) {
-  return players >= 6 ? 3 : 2;
+  return players >= 6 ? 4 : 3;
 }
 export const DIVE_MS = 2_500;
 /** Crates wash up in this many waves each tide, evenly spaced. */
@@ -474,7 +474,7 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   const wreckers = new Set(shuffle(s.players.map((p) => p.id), rng).slice(0, wreckerCount(s)));
   const g = ground(s, now);
   s.players.forEach((p, i) => {
-    const spot = nearestFooting(1150 + (i % 4) * 34, 1270 + Math.floor(i / 4) * 34, g);
+    const spot = nearestFooting(ZONES.harbour.x - 10 + (i % 4) * 34, ZONES.harbour.y - 30 + Math.floor(i / 4) * 34, g);
     Object.assign(p, {
       wrecker: wreckers.has(p.id), x: spot.x, y: spot.y, dir: -Math.PI / 2, moving: false,
       mounted: ROLE_INFO[p.role!].mounted, carry: [], pearls: 2, ready: false, brig: false, busyUntil: 0,
@@ -541,7 +541,7 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
   }
   // A few more supplies wash up anywhere still dry.
   const dryZones = ZONE_IDS.filter((z) => z !== "caves" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.3) <= 0);
-  for (let i = 0; i < 1 && dryZones.length; i++) {
+  for (let i = 0; i < 2 && dryZones.length; i++) {
     const z = dryZones[Math.floor(rng() * dryZones.length)];
     const spot = randomSpot(z, g, rng);
     if (spot) s.crates.push({ id: nid(s, "c"), kind: SUPPLIES[Math.floor(rng() * 3)], x: spot.x, y: spot.y, zone: z });
@@ -694,7 +694,7 @@ function seaMonster(s: GameState, now: number, rng: Rng, g: Ground) {
   }
   if (!s.nextMonsterAt || now < s.nextMonsterAt) return;
   // It hunts people more than bots, and anyone carrying crates most of all.
-  const outdoors = s.players.filter((p) => !p.brig && p.x < 3000);
+  const outdoors = s.players.filter((p) => !p.brig && p.x < INTERIOR_X);
   const carrying = (p: Player) => p.carry.some((c) => c.kind !== "cutlass");
   const pools = [outdoors.filter((p) => !p.bot && carrying(p)), outdoors.filter(carrying), outdoors.filter((p) => !p.bot), outdoors];
   const pool = pools.find((l) => l.length) ?? [];
@@ -1132,10 +1132,10 @@ function settleVote(s: GameState, now: number, force: boolean) {
     t.ready = false;
     t.moving = false;
     // Their cargo is confiscated and left on the pier.
-    for (const item of t.carry) s.crates.push({ ...item, x: 1250 + (Math.random() - 0.5) * 40, y: 1400 + Math.random() * 40, zone: "dropped" });
+    for (const item of t.carry) s.crates.push({ ...item, x: (DOCK.x1 + DOCK.x2) / 2 + (Math.random() - 0.5) * 40, y: DOCK.y1 + 40 + Math.random() * 40, zone: "dropped" });
     t.carry = [];
-    t.x = 1300;
-    t.y = 1520;
+    t.x = FERRY.x + 10;
+    t.y = FERRY.y - 82;
     fx(s, "brig", t.x, t.y, t.id);
     log(s, `${t.name} is locked in the Kohinoor's brig. ${t.wrecker ? "They WERE a Wrecker!" : "They were innocent."}`, "alert");
   } else {

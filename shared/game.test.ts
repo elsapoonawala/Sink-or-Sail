@@ -288,12 +288,13 @@ describe("bots", () => {
     tick(s, 1_000_000 + MONSTER_WARN_MS + 2100, seeded());
     expect(s.monster).toBeNull();
   });
-  it("has only a couple of horses, and galloping through water shakes a crate loose", () => {
-    const s = game(3);
+  it("has only a few horses, and galloping through water shakes a crate loose", () => {
+    const s = game(4);
     for (const p of s.players) { p.mounted = false; p.bot = false; p.x = STABLE_POS.x; p.y = STABLE_POS.y + 30; }
-    const [a, b, c] = s.players;
+    const [a, b, c, d] = s.players;
     expect(toggleMount(s, a.id)).toBeNull();
     expect(toggleMount(s, b.id)).toBeNull();
+    expect(toggleMount(s, d.id)).toBeNull();
     expect(toggleMount(s, c.id)).toMatch(/Every horse is out/);
     // Ride into shallow water carrying crates.
     const g = ground(s, 1_000_100);
