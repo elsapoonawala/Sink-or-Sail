@@ -112,8 +112,14 @@ input:focus { border-color: var(--brass); outline: none; }
 .ornament span:last-child { transform: scaleX(-1); }
 .home-title .lede { color: #efe6d2; font-size: 18px; max-width: 56ch; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); }
 .home-title .lede b { color: var(--brass-hi); }
-.home-ship { margin: -4px 0 0; width: min(320px, 70vw); filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55)); }
-.home-ship svg { display: block; width: 100%; height: auto; }
+.home-ship { margin: 2px 0 0; width: min(440px, 88vw); display: grid; justify-items: center; }
+.home-ship svg { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.55)) drop-shadow(0 0 30px rgba(255, 210, 140, 0.25)); }
+.home-ship figcaption { margin-top: -16px; padding: 5px 22px 6px; border-radius: 999px; background: linear-gradient(#f3dca0, #c99a45); color: #2b1d0c; font: italic 700 clamp(18px, 4.6vw, 24px) / 1 "Bodoni Moda", Georgia, serif; letter-spacing: 0.02em; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45); position: relative; }
+.hs-bob { animation: hs-bob 4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.hs-waves { animation: hs-waves 6s linear infinite; }
+@keyframes hs-bob { 0%, 100% { transform: translateY(0) rotate(-0.8deg); } 50% { transform: translateY(2.5px) rotate(0.8deg); } }
+@keyframes hs-waves { from { transform: translateX(0); } to { transform: translateX(20px); } }
+@media (prefers-reduced-motion: reduce) { .hs-bob, .hs-waves { animation: none; } }
 .home-card {
   width: min(460px, 100%); position: relative;
   background: linear-gradient(170deg, rgba(16, 58, 69, 0.88), rgba(8, 33, 42, 0.92));

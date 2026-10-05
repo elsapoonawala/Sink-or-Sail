@@ -42,8 +42,36 @@ export function Home() {
         <header className="home-title">
           <span className="eyebrow">1 to 8 players · no sign-up</span>
           <h1>Sink <em>or</em> Sail</h1>
-          <figure className="home-ship" aria-label="The ferry, the Kohinoor">
-            <svg viewBox="-100 -50 200 125" aria-hidden="true"><Ferry fill={0.55} /></svg>
+          <figure className="home-ship" aria-label="The ferry, the Kohinoor, at sea">
+            <svg viewBox="-150 -88 300 176" aria-hidden="true">
+              <defs>
+                <linearGradient id="hs-sky" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="#2c5a6b" /><stop offset=".55" stopColor="#e9a46a" /><stop offset="1" stopColor="#f7d79a" />
+                </linearGradient>
+                <linearGradient id="hs-sea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="#3f9aa0" /><stop offset="1" stopColor="#0d3f4c" />
+                </linearGradient>
+                <radialGradient id="hs-sun" cx=".5" cy=".5" r=".5">
+                  <stop offset="0" stopColor="#fff4cf" /><stop offset=".45" stopColor="#ffd98a" stopOpacity=".9" /><stop offset="1" stopColor="#ffd98a" stopOpacity="0" />
+                </radialGradient>
+                <clipPath id="hs-clip"><ellipse cx="0" cy="0" rx="146" ry="84" /></clipPath>
+              </defs>
+              <g clipPath="url(#hs-clip)">
+                <rect x="-150" y="-88" width="300" height="140" fill="url(#hs-sky)" />
+                <circle cx="-82" cy="38" r="44" fill="url(#hs-sun)" />
+                <rect x="-150" y="40" width="300" height="52" fill="url(#hs-sea)" />
+                <path d="M-120 46 h76 M-112 52 h58 M-100 58 h36" stroke="#ffe3a3" strokeWidth="1.6" opacity=".7" strokeLinecap="round" />
+                <g className="hs-waves">
+                  <path d="M-160 66 q10 -4 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" stroke="#bfe6e2" strokeWidth="1.2" fill="none" opacity=".55" />
+                  <path d="M-170 78 q10 -4 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" stroke="#bfe6e2" strokeWidth="1" fill="none" opacity=".35" />
+                </g>
+                <g transform="translate(18 64) scale(.82 -.3)" opacity=".18"><Ferry fill={0.55} /></g>
+                <g className="hs-bob"><g transform="translate(18 -8) scale(.82)"><Ferry fill={0.55} /></g></g>
+              </g>
+              <ellipse cx="0" cy="0" rx="146" ry="84" fill="none" stroke="#d2a74e" strokeWidth="3" />
+              <ellipse cx="0" cy="0" rx="141" ry="79" fill="none" stroke="#f3dca0" strokeWidth=".8" opacity=".7" />
+            </svg>
+            <figcaption>The Kohinoor</figcaption>
           </figure>
           <p className="lede">The tide is rising over the island. Race your friends across the island on foot and on horseback, haul fuel, medicine and tools to the last ferry, <b>the Kohinoor</b>, and grab diamonds before the sea takes them. Be on the pier when she sails.</p>
         </header>
