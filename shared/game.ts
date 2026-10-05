@@ -45,6 +45,10 @@ export const MONSTER_GRAB_MS = 2_200;
 export const MONSTER_FIRST_MS = 50_000;
 /** Galloping through water shakes a crate loose, at most this often. */
 export const SPLASH_DROP_MS = 2_500;
+/** One golden crate is out at a time; whoever loads it earns these pearls. */
+export const GOLDEN_PEARLS = 5;
+export const GOLDEN_FIRST_MS = 35_000;
+export const GOLDEN_GAP_MS = 40_000;
 /** Horses waiting at the stables: few enough that people race for them. */
 export function stableHorsesFor(players: number) {
   return players >= 6 ? 3 : 2;
@@ -85,6 +89,8 @@ export interface Settings {
 export interface Item {
   id: string;
   kind: Kind;
+  /** The one golden crate: loading it pays GOLDEN_PEARLS. */
+  golden?: boolean;
 }
 
 export interface Crate extends Item {
@@ -215,6 +221,7 @@ export interface GameState {
   nextMonsterAt: number;
   /** Saddled horses still waiting at the Royal Stables. */
   stableHorses: number;
+  nextGoldenAt: number;
   marketStock: number;
   diveReady: number[];
   /** How many of this tide's crate waves have washed up. */
@@ -371,6 +378,7 @@ export function createGame(code: string, hostId: string): GameState {
     monster: null,
     nextMonsterAt: 0,
     stableHorses: 2,
+    nextGoldenAt: 0,
     marketStock: 0,
     diveReady: DIVE_SPOTS.map(() => 0),
     spawnedPart: 0,
@@ -445,6 +453,7 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   s.caveOpen = false;
   s.monster = null;
   s.stableHorses = stableHorsesFor(s.players.length);
+  s.nextGoldenAt = now + (Number((globalThis as any).process?.env?.GOLDEN_FIRST_MS) || GOLDEN_FIRST_MS);
   s.nextMonsterAt = now + (Number((globalThis as any).process?.env?.MONSTER_FIRST_MS) || MONSTER_FIRST_MS);
   s.diveReady = DIVE_SPOTS.map(() => 0);
   s.closed = [];
@@ -621,6 +630,27 @@ export function leaveBuilding(s: GameState, pid: string, now: number): string | 
 }
 
 /** Somewhere dry a short walk from (x, y). */
+/** One golden crate at a time washes up somewhere dry. When it's loaded or lost, another follows. */
+function goldenCrate(s: GameState, now: number, rng: Rng, g: Ground) {
+  const out = s.crates.some((c) => c.golden) || s.players.some((p) => p.carry.some((c) => c.golden));
+  if (out) {
+    s.nextGoldenAt = Math.max(s.nextGoldenAt, now + GOLDEN_GAP_MS);
+    return;
+  }
+  if (!s.nextGoldenAt || now < s.nextGoldenAt || s.endsAt - now < 45_000) return;
+  const dry = ZONE_IDS.filter((z) => z !== "caves" && z !== "harbour" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.6) <= 0);
+  const z = dry[Math.floor(rng() * dry.length)];
+  const spot = z ? randomSpot(z, g, rng) : null;
+  if (!z || !spot) {
+    s.nextGoldenAt = now + 5_000;
+    return;
+  }
+  s.crates.push({ id: nid(s, "c"), kind: SUPPLIES[Math.floor(rng() * 3)], x: spot.x, y: spot.y, zone: z, golden: true });
+  fx(s, "wave", spot.x, spot.y);
+  log(s, `A golden crate washed up at ${ZONES[z].name}. Load it for ${GOLDEN_PEARLS} pearls!`, "info");
+  s.version++;
+}
+
 /** A horse galloping through water shakes a crate loose: it lands in the water behind you. */
 function gallopSplash(s: GameState, p: Player, now: number, g: Ground) {
   // Bots ride carefully (their paths cut through shallows), so only people pay for it.
@@ -800,6 +830,7 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
       }
     }
     seaMonster(s, now, rng, g);
+    goldenCrate(s, now, rng, g);
     if (s.vote && s.vote.outcome === "open") settleVote(s, now, false);
     // Enough people ready on the pier: start the countdown.
     const ready = s.players.filter((p) => p.ready || p.brig).length;
@@ -847,10 +878,11 @@ function collect(s: GameState, p: Player, now: number) {
   if (i < 0) return;
   const c = s.crates[i];
   s.crates.splice(i, 1);
-  p.carry.push({ id: c.id, kind: c.kind });
+  p.carry.push({ id: c.id, kind: c.kind, ...(c.golden ? { golden: true } : {}) });
   if (p.role === "duchess" && c.zone !== "dropped") p.pearls++;
   if (c.bonus) p.pearls += c.bonus;
   fx(s, "pickup", c.x, c.y, p.id, c.kind);
+  if (c.golden) log(s, `${p.name} grabbed the golden crate!`, "info");
   if (c.kind === "cutlass") log(s, `${p.name} picked up a cutlass.`, "alert");
   if (c.kind === "compass") log(s, `${p.name} found the Antique Compass.`, "info");
   if (c.kind === "diamond" && c.zone !== "dropped") log(s, `${p.name} found a diamond ${c.zone === "cave" ? "at the Sapphire Caves" : c.zone === "indoors" ? `in ${buildingAt(c.x, c.y)?.name ?? "a building"}` : `at ${ZONES[c.zone as ZoneId].name}`}.`, "info");
@@ -866,6 +898,10 @@ function loadAll(s: GameState, p: Player) {
     p.carry = p.carry.filter((c) => c.id !== item.id);
     s.hold.push({ ...item, owner: p.id });
     if (item.kind === "diamond") p.loadedDiamonds++;
+    if (item.golden) {
+      p.pearls += GOLDEN_PEARLS;
+      log(s, `${p.name} loaded the golden crate: +${GOLDEN_PEARLS} pearls!`, "load");
+    }
     if (isSpare) spare++;
     loaded.push(KIND_INFO[item.kind].name.toLowerCase());
   }

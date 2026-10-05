@@ -8,7 +8,7 @@ import { FERRY, GANGWAY, H, W, ZONES, ZONE_IDS, buildingAt, footing, outdoorPos,
 import { drawDoors, drawInterior, outdoorBuildings } from "./interiors";
 import { getStore, live, sendMove } from "./net";
 import {
-  type Prop, drawCrate, drawDock, drawFerry, drawGangway, drawMonster, drawGlints, drawItem, drawLandmarks, drawPearls, drawPerson,
+  type Prop, drawCrate, drawDock, drawFerry, drawGangway, drawGoldenHalo, drawMonster, drawGlints, drawItem, drawLandmarks, drawPearls, drawPerson,
   drawProp, drawRoads, paintTerrain, paintWater, scatterProps, seaColor,
 } from "./scene";
 import { sfx } from "./sound";
@@ -473,6 +473,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           y: c.y,
           draw: () => {
             if (theirs) ctx.globalAlpha = 0.45;
+            if (c.golden) drawGoldenHalo(ctx, c.x, c.y, t, grow);
             drawCrate(ctx, c.kind, c.x, c.y, t, c.x * 0.01, grow);
             ctx.globalAlpha = 1;
             if (c.owner) {
@@ -632,7 +633,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
         const near = v.crates
           .filter((c) => (c.zone !== "cave" || v.caveOpen) && (!c.owner || c.owner === v.you) && footing(c.x, c.y, g) > 0)
           .map((cr) => ({ cr, c: { ...outdoorPos(cr.x, cr.y), kind: cr.kind } }))
-          .map(({ cr, c }) => ({ c, d: Math.hypot(c.x - me.x, c.y - me.y) * (cr.owner ? 0.4 : 1) }))
+          .map(({ cr, c }) => ({ c, d: Math.hypot(c.x - me.x, c.y - me.y) * (cr.golden ? 0.15 : cr.owner ? 0.4 : 1) }))
           .filter(({ c }) => {
             const sx = (c.x - cam.x) * scale + vw / 2;
             const sy = (c.y - cam.y) * scale + vh / 2;
@@ -813,6 +814,19 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
       }
       for (const crate of v.crates) {
         const cr = { ...crate, ...outdoorPos(crate.x, crate.y) };
+        if (cr.golden) {
+          // Everyone can see where the golden crate is: a soft gold ring on the map.
+          ctx.strokeStyle = `rgba(255,215,90,${0.6 + 0.4 * Math.sin(now / 300)})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cr.x * k, cr.y * k, dot * 2.2, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = "#ffd54a";
+          ctx.beginPath();
+          ctx.arc(cr.x * k, cr.y * k, dot, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
         const show = lamp || spotted.ids.has(cr.id) || (me?.role === "physician" && cr.kind === "medicine") || (me?.role === "jeweler" && cr.kind === "diamond");
         if (!show) continue;
         ctx.fillStyle = cr.kind === "medicine" ? "#ff8f9c" : cr.kind === "diamond" || cr.kind === "compass" ? "#bfe8f5" : cr.kind === "cutlass" ? "#ff6b5e" : "#f2d14b";

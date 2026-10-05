@@ -162,6 +162,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     if (c.zone === "cave" && !s.caveOpen) continue;
     if (c.zone === "indoors") continue; // bots stay outdoors: what's inside buildings is for people
     if (c.owner && c.owner !== p.id) continue;
+    if (c.golden) continue; // the golden crate is for people to race for
     if (footing(c.x, c.y, g) <= 0) continue;
     if (savedForPeople(s, p, c, now)) continue;
     let v = worth(s, c.kind, short);

@@ -1466,3 +1466,30 @@ export function drawMonster(ctx: CanvasRenderingContext2D, m: { x: number; y: nu
   }
   ctx.restore();
 }
+
+/** The golden crate's glow: a warm pulsing halo and slow rays, so it stands out from afar. */
+export function drawGoldenHalo(ctx: CanvasRenderingContext2D, x: number, y: number, t: number, grow = 1) {
+  ctx.save();
+  ctx.translate(x, y - 10 * grow);
+  ctx.scale(grow, grow);
+  const pulse = 0.5 + 0.5 * Math.sin(t / 400);
+  const g = ctx.createRadialGradient(0, 0, 4, 0, 0, 62);
+  g.addColorStop(0, `rgba(255,230,140,${0.75 + 0.2 * pulse})`);
+  g.addColorStop(1, "rgba(255,200,80,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, 62, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.rotate(t / 3000);
+  ctx.strokeStyle = `rgba(255,225,130,${0.6 + 0.3 * pulse})`;
+  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 24, Math.sin(a) * 24);
+    ctx.lineTo(Math.cos(a) * (36 + 6 * pulse), Math.sin(a) * (36 + 6 * pulse));
+    ctx.stroke();
+  }
+  ctx.restore();
+}

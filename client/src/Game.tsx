@@ -1,7 +1,7 @@
 // The in-game screen: the living island with a brass-and-velvet HUD over it.
 import { useEffect, useRef, useState } from "react";
 import {
-  type GameView, DUMP_COOLDOWN, MONSTER_R, KIND_INFO, ROLE_INFO, STRIKE_R,
+  type GameView, DUMP_COOLDOWN, GOLDEN_PEARLS, MONSTER_R, KIND_INFO, ROLE_INFO, STRIKE_R,
   carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nextWaveAt,
 } from "../../shared/game";
 import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, footing, onDock, seaLevel, swimming } from "../../shared/world";
@@ -165,9 +165,10 @@ export function Game({ v }: { v: GameView }) {
   else if (v.sailAt) hint = `The Kohinoor sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";
   else if (onlyBlade) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
+  else if (me.carry.some((c) => c.golden)) hint = `You've got the golden crate! Load it onto the Kohinoor for ${GOLDEN_PEARLS} pearls before the sea monster or a cutlass takes it.`;
   else if (full) hint = "Hands full. Follow the gold arrow to the Kohinoor and step onto the LOAD HERE circle.";
   else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the Kohinoor. Your crates go in by themselves.";
-  else if (left) hint = `Find glowing crates${mine ? " (the gold one marked Yours is saved for you)" : ""}. The Kohinoor needs ${left} more or she sinks.`;
+  else if (left) hint = `Find glowing crates${mine ? " (the one marked Yours is saved for you)" : ""}. The Kohinoor needs ${left} more or she sinks.`;
   else hint = "The Kohinoor has enough crates! Extra ones pay you pearls. Be on the pier when she sails.";
 
   const lampOn = now < v.lampUntil;
@@ -263,7 +264,7 @@ export function Game({ v }: { v: GameView }) {
           {Array.from({ length: carryLimit(me) }, (_, i) => {
             const it = myItems[i];
             return it ? (
-              <button key={it.id} className="slot filled" onClick={() => act({ type: "drop", itemId: it.id })} title={`Drop ${KIND_INFO[it.kind].name}`} aria-label={`Carrying ${KIND_INFO[it.kind].name}. Tap to drop.`}>
+              <button key={it.id} className={`slot filled ${it.golden ? "golden" : ""}`} onClick={() => act({ type: "drop", itemId: it.id })} title={`Drop ${KIND_INFO[it.kind].name}`} aria-label={`Carrying ${KIND_INFO[it.kind].name}. Tap to drop.`}>
                 <CardArt kind={it.kind} size={28} />
               </button>
             ) : (

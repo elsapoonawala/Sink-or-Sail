@@ -69,7 +69,7 @@ const QUICK: { icon: string; text: React.ReactNode }[] = [
   { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>.</> },
   { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by our ferry, <b>the Kohinoor</b>, to load them.</> },
   { icon: "🎯", text: <>Load <b>7 crates per player</b> (at least 20) onto the Kohinoor before the last tide, <b>or she sinks</b>. The bar at the top counts them.</> },
-  { icon: "💎", text: <>Grab <b>pearls and diamonds</b> too: the richest player aboard wins.</> },
+  { icon: "💎", text: <>Grab <b>pearls and diamonds</b> too, and race for the glowing <b>golden crate</b> (+5 pearls). The richest player aboard wins.</> },
   { icon: "⚓", text: <>Be <b>on the pier</b> when she sails, or you're left behind.</> },
 ];
 
@@ -133,6 +133,7 @@ function FullRules() {
         <ul>
           <li>Your fortune is your pearls plus <b>3 for every diamond</b> you loaded (or carried onto the pier). It only counts if the Kohinoor makes it and you're aboard.</li>
           <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves and some crates, plus extra crates you load once the Kohinoor has enough (+2 each).</li>
+          <li>One <b>golden crate</b> is out at a time, glowing and marked on everyone's map. Whoever loads it onto the Kohinoor earns <b>5 pearls</b> (it counts toward the goal like any crate). Then another washes up somewhere else. Bots leave it for people.</li>
           <li>Two diamonds turn up each tide. Three more lie in the sealed Sapphire Caves: carry the Antique Compass from the palace to the cave door to open it.</li>
           <li>Light the lighthouse lamp (once a tide) to show every crate on the map for 45 seconds and reveal a hidden stepping-stone path.</li>
         </ul>

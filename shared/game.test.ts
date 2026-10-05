@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type GameState, addPlayer, accuse, castVote, createGame, ground, moveTo, player,
-  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, toggleMount, MONSTER_R, MONSTER_WARN_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
+  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, GOLDEN_FIRST_MS, toggleMount, MONSTER_R, MONSTER_WARN_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
 import { BUILDING, BUILDINGS, DOCK, GANGWAY, STABLE_POS, ZONES, buildingAt, buildingOpen, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
@@ -120,7 +120,7 @@ describe("crates, pearls and the cutlass", () => {
     const first = s.crates.filter((c) => c.zone !== "cave").length;
     expect(first).toBeGreaterThanOrEqual(7);
     tick(s, s.tideStartedAt + s.tideMs / WAVES + 1, seeded());
-    expect(s.crates.filter((c) => c.zone !== "cave").length).toBe(first);
+    expect(s.crates.filter((c) => c.zone !== "cave" && !c.golden).length).toBe(first);
     tick(s, s.tideStartedAt + (2 * s.tideMs) / WAVES + 1, seeded());
     expect(s.crates.filter((c) => c.zone !== "cave").length).toBeGreaterThanOrEqual(11);
     expect(s.piles.length).toBeGreaterThanOrEqual(6);
@@ -305,5 +305,22 @@ describe("bots", () => {
     tick(s, 1_000_100, seeded());
     expect(a.carry).toHaveLength(1);
     expect(s.crates.some((k) => k.id === "w2")).toBe(true);
+  });
+  it("puts out one golden crate at a time that pays pearls when loaded", () => {
+    const s = game(2);
+    const [a] = s.players;
+    tick(s, 1_000_000 + GOLDEN_FIRST_MS + 10, seeded());
+    const gold = s.crates.filter((c) => c.golden);
+    expect(gold).toHaveLength(1);
+    tick(s, 1_000_000 + GOLDEN_FIRST_MS + 500, seeded());
+    expect(s.crates.filter((c) => c.golden)).toHaveLength(1);
+    s.crates = s.crates.filter((c) => !c.golden);
+    a.carry = [{ ...gold[0], golden: true }];
+    a.x = GANGWAY.x;
+    a.y = GANGWAY.y;
+    const before = a.pearls;
+    tick(s, 1_000_000 + GOLDEN_FIRST_MS + 600, seeded());
+    expect(a.pearls).toBeGreaterThanOrEqual(before + 5);
+    expect(s.hold).toHaveLength(1);
   });
 });
