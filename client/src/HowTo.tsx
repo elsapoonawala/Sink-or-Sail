@@ -70,8 +70,33 @@ const SLIDES = [
   },
 ];
 
-/** The complete rules, short enough to read in two minutes. */
+const QUICK: { icon: string; text: React.ReactNode }[] = [
+  { icon: "📦", text: <>Walk into glowing crates to pick them up. The ones with <b>your name</b> are only for you.</> },
+  { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by the ferry to load them.</> },
+  { icon: "🎯", text: <>Fill the ferry: <b>8 fuel, 6 medicine, 5 tools</b> before the last tide.</> },
+  { icon: "💎", text: <>Get rich: pearls, diamonds, and your secret order. <b>Trade</b> with anyone, any time.</> },
+  { icon: "⚓", text: <>Be <b>on the pier</b> when she sails, or you're left behind.</> },
+];
+
+/** Five lines to start playing; the full details stay one tap away. */
 export function Rules() {
+  const [more, setMore] = useState(false);
+  return (
+    <div className="rules">
+      <ol className="quick-rules">
+        {QUICK.map((r, i) => (
+          <li key={i}><span aria-hidden="true">{r.icon}</span><p>{r.text}</p></li>
+        ))}
+      </ol>
+      <p className="quick-foot">That's all you need. Hints on screen guide you through the first tide.</p>
+      <button className="btn ghost small" type="button" onClick={() => setMore(!more)} aria-expanded={more}>{more ? "Hide the details" : "All the details"}</button>
+      {more && <FullRules />}
+    </div>
+  );
+}
+
+/** The complete rules, for anyone who wants every detail. */
+function FullRules() {
   return (
     <div className="rules">
       <section>

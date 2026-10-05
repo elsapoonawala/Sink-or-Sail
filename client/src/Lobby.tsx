@@ -129,7 +129,7 @@ export function Lobby({ v }: { v: GameView }) {
 
       <aside className="lobby-side">
         <HowTo auto />
-        <button className="btn ghost" onClick={() => setRules(true)}>Read the full rules</button>
+        <button className="btn ghost" onClick={() => setRules(true)}>Rules in 5 lines</button>
         <CommsPanel v={v} />
       </aside>
 
