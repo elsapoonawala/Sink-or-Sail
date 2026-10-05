@@ -424,7 +424,28 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       for (const c of v.crates) {
         if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue;
         if (c.zone !== "cave" || v.caveOpen) spotted.ids.add(c.id);
-        items.push({ y: c.y, draw: () => drawCrate(ctx, c.kind, c.x, c.y, t, c.x * 0.01, Math.max(1, 0.75 / scale)) });
+        const grow = Math.max(1, 0.75 / scale);
+        const theirs = c.owner && c.owner !== v.you;
+        items.push({
+          y: c.y,
+          draw: () => {
+            if (theirs) ctx.globalAlpha = 0.45;
+            drawCrate(ctx, c.kind, c.x, c.y, t, c.x * 0.01, grow);
+            ctx.globalAlpha = 1;
+            if (c.owner) {
+              // Personal crates carry the owner's name.
+              const name = c.owner === v.you ? "Yours" : `${v.players.find((p) => p.id === c.owner)?.name ?? ""}'s`;
+              ctx.font = `700 ${Math.round(11 * grow)}px "Courier Prime", monospace`;
+              ctx.textAlign = "center";
+              const w = ctx.measureText(name).width + 10 * grow;
+              ctx.fillStyle = c.owner === v.you ? "rgba(210,167,78,.95)" : "rgba(11,42,51,.7)";
+              roundRect(ctx, c.x - w / 2, c.y - 46 * grow, w, 15 * grow, 7 * grow);
+              ctx.fill();
+              ctx.fillStyle = c.owner === v.you ? "#1d1410" : "#f3ece0";
+              ctx.fillText(name, c.x, c.y - 35 * grow);
+            }
+          },
+        });
       }
       for (const pile of v.piles) {
         if (pile.x < x0 || pile.x > x1 || pile.y < y0 || pile.y > y1) continue;
@@ -565,8 +586,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       // Glinting pointers to the nearest crates you can't see yet.
       if (v.phase === "play" && self && self.carry.length < carryLimit(self)) {
         const near = v.crates
-          .filter((c) => (c.zone !== "cave" || v.caveOpen) && footing(c.x, c.y, g) > 0)
-          .map((c) => ({ c, d: Math.hypot(c.x - me.x, c.y - me.y) }))
+          .filter((c) => (c.zone !== "cave" || v.caveOpen) && (!c.owner || c.owner === v.you) && footing(c.x, c.y, g) > 0)
+          .map((c) => ({ c, d: Math.hypot(c.x - me.x, c.y - me.y) * (c.owner ? 0.4 : 1) }))
           .filter(({ c }) => {
             const sx = (c.x - cam.x) * scale + vw / 2;
             const sy = (c.y - cam.y) * scale + vh / 2;
@@ -596,6 +617,49 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           ctx.lineTo(-3, -5);
           ctx.lineTo(-3, 5);
           ctx.fill();
+          ctx.restore();
+        }
+      }
+      // Holding a cutlass: a red arrow to the nearest person you could attack.
+      if (v.phase === "play" && self && !self.brig && self.carry.some((c) => c.kind === "cutlass")) {
+        let best: { x: number; y: number; d: number } | null = null;
+        for (const p of v.players) {
+          if (p.id === v.you || p.brig || now < p.downUntil || now < p.guardUntil) continue;
+          const o = others.get(p.id);
+          if (!o) continue;
+          const d = Math.hypot(o.x - me.x, o.y - me.y);
+          if (!best || d < best.d) best = { x: o.x, y: o.y, d };
+        }
+        if (best) {
+          const sx = (best.x - cam.x) * scale + vw / 2;
+          const sy = (best.y - 40 - cam.y) * scale + vh / 2;
+          const on = sx > 20 && sy > 20 && sx < vw - 20 && sy < vh - 20;
+          ctx.save();
+          if (on) {
+            // a red marker bobbing over their head
+            ctx.translate(sx, sy - 34 * scale - Math.abs(Math.sin(t / 200)) * 6);
+            ctx.fillStyle = "#e0453b";
+            ctx.beginPath();
+            ctx.moveTo(0, 10);
+            ctx.lineTo(-9, -4);
+            ctx.lineTo(9, -4);
+            ctx.closePath();
+            ctx.fill();
+          } else {
+            const a = Math.atan2(sy - vh / 2, sx - vw / 2);
+            const rx = vw / 2 - 64;
+            const ry = vh / 2 - 64;
+            const k = Math.min(Math.abs(rx / Math.cos(a)), Math.abs(ry / Math.sin(a)));
+            ctx.translate(vw / 2 + Math.cos(a) * k, vh / 2 + Math.sin(a) * k);
+            ctx.rotate(a);
+            ctx.fillStyle = "#e0453b";
+            ctx.beginPath();
+            ctx.moveTo(20, 0);
+            ctx.lineTo(-8, -13);
+            ctx.lineTo(-3, 0);
+            ctx.lineTo(-8, 13);
+            ctx.fill();
+          }
           ctx.restore();
         }
       }

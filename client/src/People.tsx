@@ -1,15 +1,9 @@
 import { useState } from "react";
-import { type GameView, type PlayerView, KIND_INFO, ROLE_INFO, TRADE_R } from "../../shared/game";
+import { type GameView, type PlayerView, KIND_INFO, ROLE_INFO } from "../../shared/game";
 import { PearlIcon, Portrait } from "./art";
-import { act, live, useStore } from "./net";
+import { act, useStore } from "./net";
 import { Icon, Sheet } from "./ui";
 import { setVolume, toggleBlock, useVoice } from "./voice";
-
-function near(v: GameView, a: string, b: string) {
-  const pa = live.pos.get(a) ?? v.players.find((p) => p.id === a);
-  const pb = live.pos.get(b) ?? v.players.find((p) => p.id === b);
-  return !!pa && !!pb && Math.hypot(pa.x - pb.x, pa.y - pb.y) < TRADE_R;
-}
 
 export function PeopleSheet({ v, onClose, onOpen }: { v: GameView; onClose: () => void; onOpen: (pid: string) => void }) {
   const { voice } = useStore();
@@ -51,7 +45,7 @@ export function PlayerSheet({ v, pid, onClose, onTrade }: { v: GameView; pid: st
   const me = v.players.find((x) => x.id === v.you)!;
   const inVoice = voice[p.id]?.on;
   const vol = vu.volume[p.id] ?? 1;
-  const canTrade = !isYou && v.phase === "play" && onTrade && near(v, v.you, p.id) && !p.brig && !me.brig;
+  const canTrade = !isYou && v.phase === "play" && onTrade && !p.brig && !me.brig;
   const canAccuse = !isYou && v.phase === "play" && v.wreckerCount > 0 && !me.accused && !me.brig && !p.brig && v.vote?.outcome !== "open";
   return (
     <Sheet title={isYou ? "You" : p.name} onClose={onClose}>
@@ -88,7 +82,6 @@ export function PlayerSheet({ v, pid, onClose, onTrade }: { v: GameView; pid: st
       {!isYou && !inVoice && !p.bot && <p className="muted small">{p.name} isn't on the walkie-talkie. Signals and chat still reach them.</p>}
       <div className="row gap wrap">
         {canTrade && <button className="btn primary" onClick={() => { onTrade!(p.id); onClose(); }}>Trade with {p.name}</button>}
-        {!isYou && v.phase === "play" && !canTrade && !p.brig && <p className="muted small">Walk up to {p.name} to trade.</p>}
         {canAccuse && (
           <button className="btn ghost danger" onClick={() => { act({ type: "accuse", target: p.id }); onClose(); }}>
             Accuse {p.name} of wrecking

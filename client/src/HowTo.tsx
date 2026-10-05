@@ -20,7 +20,7 @@ const SLIDES = [
   },
   {
     title: "Grab crates, load the ferry",
-    body: "Walk into a glowing crate to pick it up (you carry 3). Walk onto the glowing gangway beside the ferry to load them. About 12 crates wash up every tide, in three waves. The tide card counts down to the next wave.",
+    body: "Walk into a glowing crate to pick it up (you carry 3). Walk onto the glowing gangway beside the ferry to load them. About 18 crates wash up every tide, in three waves, and every wave puts 2 crates with your name near you that only you can pick up.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -36,7 +36,7 @@ const SLIDES = [
   },
   {
     title: "Your secret order",
-    body: "Every tide a passenger gives you a private order, like 2 medicine and 1 tools. Load those crates yourself to earn 6 pearls, then you get a new order at the next tide. If someone is holding what you need, walk up and trade with them.",
+    body: "Every tide a passenger gives you a private order, like 2 medicine and 1 tools. Load those crates yourself to earn 6 pearls, then you get a new order at the next tide. If someone is holding what you need, tap Trade and make them an offer, from anywhere on the island.",
     art: <div className="howto-cards"><CardArt kind="medicine" size={44} /><CardArt kind="tools" size={44} /><span className="howto-pearls"><PearlIcon size={26} /><PearlIcon size={22} /></span></div>,
   },
   {
@@ -51,7 +51,7 @@ const SLIDES = [
   },
   {
     title: "The cutlass",
-    body: "About one crate a tide holds a cutlass. Walk right up to someone and tap Strike: they're knocked out for 15 seconds and drop everything they carry. It breaks after one hit.",
+    body: "About one crate a tide holds a cutlass. While you hold it, a red Attack button stays on screen and a red arrow points to the nearest player. Walk up to them and tap Attack: they're knocked out for 15 seconds and drop everything they carry. It breaks after one hit.",
     art: <div className="howto-cards"><CardArt kind="cutlass" size={60} /></div>,
   },
   {
@@ -102,7 +102,9 @@ export function Rules() {
           <li>Walk onto the glowing gangway beside the ferry to load everything you carry.</li>
           <li>The ferry needs <b>8 fuel, 6 medicine and 5 tools</b> (quick game: 4, 3 and 2). The gauges at the top of the screen show what's aboard. The Antique Compass counts as 1 fuel once it's loaded.</li>
           <li>The hold has 30 spaces (quick game: 16), and a diamond takes 2 of them. The hold always keeps room for supplies the ferry still needs.</li>
-          <li>About 12 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
+          <li>About 18 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
+          <li>Every wave also puts <b>2 crates with your name</b> on them near you. Only you can pick those up. Gold pointers at the edge of the screen lead to the nearest crates.</li>
+          <li>Bots carry at most 2 crates, move a little slower than people, and leave alone crates that you're close to.</li>
         </ul>
       </section>
       <section>
@@ -115,8 +117,8 @@ export function Rules() {
       <section>
         <h4>6. Trading</h4>
         <ul>
-          <li>Walk next to another player and tap <b>Trade</b> (or tap them). Offer crates or pearls you have in return for crates or pearls they have. They can accept or decline.</li>
-          <li>Trade when someone holds what your order needs and you hold what theirs might need. Bots trade too, and will offer you swaps.</li>
+          <li>Tap <b>Trade</b> (bottom of the screen) at any time, from anywhere, and pick a player. Offer crates or pearls you have in return for crates or pearls they have. If they accept, the swap happens at once.</li>
+          <li>The trade list marks who is carrying what your order needs. Bots trade too, and will send you offers.</li>
         </ul>
       </section>
       <section>
@@ -131,7 +133,7 @@ export function Rules() {
       </section>
       <section>
         <h4>8. The cutlass</h4>
-        <p>About one crate a tide holds a cutlass. Walk right up to someone and tap <b>Strike</b>: they're knocked out for 15 seconds and drop everything they carry. The cutlass breaks after one hit, and a player who was just knocked out can't be hit again for 10 seconds after they get up.</p>
+        <p>About one crate a tide holds a cutlass. While you hold it, a red <b>Attack</b> button stays on screen and a red arrow points to the nearest player. Walk right up to them and tap Attack: they're knocked out for 15 seconds and drop everything they carry. The cutlass breaks after one hit, and a player who was just knocked out can't be hit again for 10 seconds after they get up.</p>
       </section>
       <section>
         <h4>9. Sailing</h4>

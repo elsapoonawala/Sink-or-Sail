@@ -4,7 +4,7 @@
 
 import {
   CAVE, CAVE_DOOR, DIVE_SPOTS, DOCK, GANGWAY, LAMP, MARKET_STALL, QUICK_TIDE_MS, STABLE_POS, TIDE_MS,
-  ZONES, ZONE_IDS, type Ground, type ZoneId, depthAt, footing, nearestFooting, onDock, seaLevel,
+  H, W, ZONES, ZONE_IDS, type Ground, type ZoneId, depthAt, footing, nearestFooting, onDock, seaLevel, zoneAt,
 } from "./world";
 
 export type Supply = "fuel" | "medicine" | "tools";
@@ -36,7 +36,9 @@ export const SAIL_MS = 7_000;
 export const DIVE_MS = 2_500;
 /** Crates wash up in this many waves each tide, evenly spaced. */
 export const WAVES = 3;
-export const STRIKE_R = 70;
+export const STRIKE_R = 90;
+/** Bots carry fewer crates than people, so people get a fair share. */
+export const BOT_CARRY = 2;
 export const KNOCKOUT_MS = 15_000;
 /** After getting up, a knocked-out player can't be struck again for a while. */
 export const GUARD_MS = 10_000;
@@ -75,6 +77,8 @@ export interface Crate extends Item {
   zone: ZoneId | "cave" | "dropped";
   /** Pearls tucked inside, found when it's picked up. */
   bonus?: number;
+  /** A crate washed up for one player: only they can pick it up. */
+  owner?: string;
 }
 
 export interface PearlPile {
@@ -255,8 +259,9 @@ export function levelNow(s: GameState, now: number) {
   return seaLevel(s.tide, s.tideStartedAt, s.totalTides, now);
 }
 
-export function carryLimit(p: { role: Role | null }) {
-  return p.role === "engineer" ? 4 : 3;
+export function carryLimit(p: { role: Role | null; bot?: boolean }) {
+  const n = p.role === "engineer" ? 4 : 3;
+  return p.bot ? Math.min(n, BOT_CARRY) : n;
 }
 
 export function speedOf(p: { mounted: boolean; role: Role | null }) {
@@ -516,6 +521,24 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
     s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: at, ...(bonus ? { bonus } : {}) });
     places.add(ZONES[at].name);
   }
+  // A few more supplies wash up anywhere still dry.
+  const dryZones = ZONE_IDS.filter((z) => z !== "caves" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.3) <= 0);
+  for (let i = 0; i < 2 && dryZones.length; i++) {
+    const z = dryZones[Math.floor(rng() * dryZones.length)];
+    const spot = randomSpot(z, g, rng);
+    if (spot) s.crates.push({ id: nid(s, "c"), kind: SUPPLIES[Math.floor(rng() * 3)], x: spot.x, y: spot.y, zone: z });
+  }
+  // And every person gets two crates of their own nearby, so the bots can't take everything.
+  for (const p of s.players) {
+    if (p.bot || !p.connected || p.brig || s.phase !== "play") continue;
+    if (s.crates.filter((c) => c.owner === p.id).length >= 4) continue;
+    const need = p.order && !p.order.done ? SUPPLIES.filter((k) => (p.order!.want[k] ?? 0) > (p.order!.got[k] ?? 0)) : [];
+    const kinds: Supply[] = [need[0] ?? SUPPLIES[Math.floor(rng() * 3)], SUPPLIES[Math.floor(rng() * 3)]];
+    for (const kind of kinds) {
+      const spot = spotNear(p.x, p.y, g, rng);
+      if (spot) s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: zoneAt(spot.x, spot.y) ?? "dropped", owner: p.id });
+    }
+  }
   // Pearls wash up wherever the land is still dry.
   const dry = ZONE_IDS.filter((z) => z !== "caves" && z !== "hotel" && depthAt(ZONES[z].x, ZONES[z].y, g.level + 0.3) <= 0);
   const piles = part === 0 ? 3 : 2;
@@ -530,6 +553,19 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
     log(s, `Fresh crates washed up at ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]}.`, "info");
   }
   s.version++;
+}
+
+/** Somewhere dry a short walk from (x, y). */
+function spotNear(x: number, y: number, g: Ground, rng: Rng) {
+  for (let i = 0; i < 40; i++) {
+    const a = rng() * Math.PI * 2;
+    const r = 180 + rng() * 260;
+    const px = x + Math.cos(a) * r;
+    const py = y + Math.sin(a) * r;
+    if (px < 40 || py < 40 || px > W - 40 || py > H - 40) continue;
+    if (footing(px, py, g) >= 1 && !onDock(px, py) && depthAt(px, py, g.level + 0.6) <= 0) return { x: px, y: py };
+  }
+  return null;
 }
 
 function randomSpot(z: ZoneId, g: Ground, rng: Rng) {
@@ -644,7 +680,7 @@ function collect(s: GameState, p: Player, now: number) {
   }
   s.piles = s.piles.filter((x) => x.n > 0);
   if (p.carry.length >= carryLimit(p)) return;
-  const i = s.crates.findIndex((c) => dist(p.x, p.y, c.x, c.y) < PICKUP_R && !savedForPeople(s, p, c, now));
+  const i = s.crates.findIndex((c) => dist(p.x, p.y, c.x, c.y) < PICKUP_R && (!c.owner || c.owner === p.id) && !savedForPeople(s, p, c, now));
   if (i < 0) return;
   const c = s.crates[i];
   s.crates.splice(i, 1);
@@ -947,7 +983,6 @@ export function makeOffer(s: GameState, from: string, to: string, give: Offer["g
   const a = player(s, from);
   const b = player(s, to);
   if (!a || !b || from === to || s.phase !== "play") return "You can't trade with them.";
-  if (dist(a.x, a.y, b.x, b.y) > TRADE_R) return `Walk up to ${b.name} to trade.`;
   if (a.brig || b.brig) return "No trading through the brig bars.";
   const ids = Array.isArray(give?.itemIds) ? [...new Set(give.itemIds.map(String))] : [];
   const items = ids.map((id) => a.carry.find((c) => c.id === id));
@@ -986,11 +1021,6 @@ export function respondOffer(s: GameState, pid: string, offerId: string, accept:
   }
   const a = player(s, o.from)!;
   const b = player(s, o.to)!;
-  if (dist(a.x, a.y, b.x, b.y) > TRADE_R * 1.5) {
-    o.status = "failed";
-    s.version++;
-    return `${a.name} walked off. Get close to trade.`;
-  }
   const giveItems = o.give.itemIds.map((id) => a.carry.find((c) => c.id === id));
   if (giveItems.some((c) => !c) || a.pearls < o.give.pearls) {
     o.status = "failed";

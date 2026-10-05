@@ -1,7 +1,7 @@
 // The in-game screen: the living island with a brass-and-velvet HUD over it.
 import { useEffect, useRef, useState } from "react";
 import {
-  type GameView, type Order, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES, TRADE_R,
+  type GameView, type Order, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES,
   carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
 } from "../../shared/game";
 import { ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
@@ -16,7 +16,18 @@ import { Icon, Sheet, copyText } from "./ui";
 import { pttDown, pttUp, toggleMute, useVoice, voiceSupported } from "./voice";
 import { MiniMap, World, type WorldApi } from "./World";
 
-type Panel = null | "chat" | "people" | "menu" | "barter" | "you" | "map" | "help";
+type Panel = null | "chat" | "people" | "menu" | "barter" | "you" | "map" | "help" | "trade";
+
+/** The nearest player you could attack, and how far away they are. */
+function attackTarget(v: GameView, pos: { x: number; y: number }, now: number) {
+  return v.players
+    .filter((p) => p.id !== v.you && !p.brig && now >= p.downUntil && now >= p.guardUntil)
+    .map((p) => {
+      const l = live.pos.get(p.id) ?? p;
+      return { p, d: Math.hypot(l.x - pos.x, l.y - pos.y) };
+    })
+    .sort((a, b) => a.d - b.d)[0];
+}
 
 function useNow(ms: number) {
   const { clockOffset } = useStore();
@@ -69,26 +80,19 @@ export function Game({ v }: { v: GameView }) {
 
   // What can I do right here?
   const others = v.players.filter((p) => p.id !== v.you && !p.brig);
-  const nearest = others
-    .map((p) => {
-      const l = live.pos.get(p.id) ?? p;
-      return { p, d: Math.hypot(l.x - pos.x, l.y - pos.y) };
-    })
-    .filter((x) => x.d < TRADE_R)
-    .sort((a, b) => a.d - b.d)[0]?.p;
   const actions: { key: string; label: string; sub?: string; onClick: () => void; tone?: "primary" | "danger" | "ghost" }[] = [];
   const busy = now < me.busyUntil;
   const down = now < me.downUntil;
   if (v.phase === "play" && !me.brig && !busy) {
     if (me.carry.some((c) => c.kind === "cutlass")) {
-      const victim = others
-        .map((p) => {
-          const l = live.pos.get(p.id) ?? p;
-          return { p, d: Math.hypot(l.x - pos.x, l.y - pos.y) };
-        })
-        .filter((x) => x.d < STRIKE_R && now >= x.p.downUntil && now >= x.p.guardUntil)
-        .sort((a, b) => a.d - b.d)[0]?.p;
-      if (victim) actions.push({ key: "strike", label: `Strike ${victim.name}`, sub: victim.carry.length ? `They drop ${victim.carry.length} crate${victim.carry.length > 1 ? "s" : ""}` : "Knocks them out for 15s", onClick: () => act({ type: "strike", target: victim.id }), tone: "danger" });
+      // The Attack button stays up while you hold a cutlass; it strikes whoever is in reach.
+      const t = attackTarget(v, pos, now);
+      if (t && t.d < STRIKE_R) {
+        const victim = t.p;
+        actions.push({ key: "strike", label: `⚔ Attack ${victim.name}`, sub: victim.carry.length ? `They drop ${victim.carry.length} crate${victim.carry.length > 1 ? "s" : ""}` : "Knocks them out for 15s", onClick: () => act({ type: "strike", target: victim.id }), tone: "danger" });
+      } else {
+        actions.push({ key: "strike", label: "⚔ Attack", sub: t ? `Get closer to ${t.p.name} (follow the red arrow)` : "Nobody to attack right now", onClick: () => toast(t ? `Walk right up to ${t.p.name} first. Follow the red arrow.` : "There's nobody you can attack right now."), tone: "danger" });
+      }
     }
     const dive = nearDive(pos);
     if (dive >= 0) {
@@ -102,10 +106,20 @@ export function Game({ v }: { v: GameView }) {
       const wait = DUMP_COOLDOWN - (now - (me.lastDump ?? -DUMP_COOLDOWN));
       actions.push({ key: "dump", label: wait > 0 ? `Lie low ${Math.ceil(wait / 1000)}s` : "Sink a crate", sub: "Secret Wrecker move", onClick: () => act({ type: "dump" }), tone: wait > 0 ? "ghost" : "danger" });
     }
-    if (nearest) actions.push({ key: "trade", label: `Trade with ${nearest.name}`, onClick: () => setTradeWith(nearest.id), tone: "ghost" });
     if (onDock(pos.x, pos.y)) actions.push({ key: "ready", label: me.ready ? "Not ready yet" : "Ready to sail", sub: me.ready ? "Tap to wait longer" : "Sails when most are ready", onClick: () => act({ type: "ready", ready: !me.ready }), tone: me.ready ? "ghost" : "primary" });
   }
 
+  // The next step for your secret order: find it, or trade for it.
+  const orderNeed = me.order && !me.order.done ? SUPPLIES.filter((k) => (me.order!.want[k] ?? 0) > (me.order!.got[k] ?? 0) + me.carry.filter((c) => c.kind === k).length) : [];
+  const holder = orderNeed.length ? others.find((p) => p.carry.some((c) => orderNeed.includes(c.kind as Supply))) : undefined;
+  const mine = v.crates.some((c) => c.owner === v.you);
+  const orderTip = !orderNeed.length
+    ? ""
+    : mine
+      ? `Your order needs ${orderNeed.join(" and ")}. Crates with your name are waiting nearby: follow the gold pointers.`
+      : holder
+        ? `Your order needs ${orderNeed.join(" and ")}. ${holder.name} is carrying some: tap Trade to make an offer.`
+        : `Your order needs ${orderNeed.join(" and ")}. Find glowing crates, or trade for them.`;
   const swimmingNow = !me.mounted && swimming(pos.x, pos.y, { level: seaLevel(v.tide, v.tideStartedAt, v.totalTides, now), secretFound: v.secretFound, caveOpen: v.caveOpen });
   const full = me.carry.length >= carryLimit(me);
   const holdFull = v.slots >= v.capacity;
@@ -123,7 +137,8 @@ export function Game({ v }: { v: GameView }) {
   else if (blocked && me.carry.every((c) => c.kind === "cutlass")) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
   else if (blocked) hint = `The hold is saving its last space for the ${stillNeeded} supplies still needed. Bring those first.`;
   else if (full) hint = "Hands full. Carry it to the ferry's gangway (follow the gold arrow).";
-  else if (me.carry.length) hint = "Walk onto the glowing gangway by the ferry to load what you carry.";
+  else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "Walk onto the glowing gangway by the ferry to load what you carry.";
+  else if (orderTip) hint = orderTip;
   else if (short.length) hint = `Find glowing crates. The ferry still needs ${short.map((k) => `${v.needs[k] - v.supplies[k]} ${k}`).join(", ")}.`;
   else hint = "Supplies are aboard! Grab treasure, then gather on the pier and call Ready.";
 
@@ -190,6 +205,7 @@ export function Game({ v }: { v: GameView }) {
       {v.sailAt && <div className="banner sail">The ferry sails in {Math.ceil((v.sailAt - now) / 1000)}s</div>}
       {v.vote?.outcome === "open" && <VoteCard v={v} now={now} />}
       <div className="hud-offers"><OffersTray v={v} /></div>
+      {v.phase === "play" && v.tide === 1 && !me.brig && !intro && <FirstSteps v={v} />}
       {intro && me.role && (
         <div className="intro-card" onClick={() => setIntro(false)}>
           <Portrait role={me.role} seat={me.seat} size={64} />
@@ -206,6 +222,12 @@ export function Game({ v }: { v: GameView }) {
       {/* bottom left: walkie-talkie and comms */}
       <section className="hud-comms">
         <Walkie />
+        {v.phase === "play" && !me.brig && (
+          <button className="icon-btn big trade-btn" onClick={() => setPanel("trade")} aria-label="Trade with anyone">
+            <Icon name="trade" />
+            <small>Trade</small>
+          </button>
+        )}
         <button className="icon-btn big" onClick={() => setPanel("chat")} aria-label="Chat and signals">
           <Icon name="chat" />
           {unread > 0 && <span className="badge">{unread}</span>}
@@ -251,6 +273,26 @@ export function Game({ v }: { v: GameView }) {
           <ChatPanel v={v} />
         </Sheet>
       )}
+      {panel === "trade" && (
+        <Sheet title="Trade with anyone" onClose={() => setPanel(null)}>
+          <p className="muted small">Pick a player, offer what you carry or pearls, and ask for what they carry. If they accept, the crates swap at once, wherever you both are.</p>
+          {me.order && !me.order.done && orderNeed.length > 0 && <p className="small order-note">Your order still needs {orderNeed.join(" and ")}.</p>}
+          <ul className="people">
+            {others.map((p) => (
+              <li key={p.id}>
+                <button className="person" onClick={() => { setPanel(null); setTradeWith(p.id); }}>
+                  <Portrait role={p.role} seat={p.seat} size={40} />
+                  <span className="person-name">
+                    <b>{p.name}{p.bot ? " (bot)" : ""}</b>
+                    <small className="muted">Carrying {p.carry.length ? p.carry.map((c) => KIND_INFO[c.kind].name.toLowerCase()).join(", ") : "nothing"} · {p.pearls} pearls</small>
+                  </span>
+                  {p.carry.some((c) => orderNeed.includes(c.kind as Supply)) && <small className="tag ok">has what you need</small>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Sheet>
+      )}
       {panel === "people" && <PeopleSheet v={v} onClose={() => setPanel(null)} onOpen={(pid) => { setPanel(null); setSheetFor(pid); }} />}
       {panel === "barter" && <BarterSheet v={v} onClose={() => setPanel(null)} />}
       {panel === "help" && (
@@ -275,6 +317,39 @@ export function Game({ v }: { v: GameView }) {
       {sheetFor && <PlayerSheet v={v} pid={sheetFor} onClose={() => setSheetFor(null)} onTrade={(pid) => setTradeWith(pid)} />}
       {tradeWith && <TradeComposer v={v} to={tradeWith} onClose={() => setTradeWith(null)} />}
     </main>
+  );
+}
+
+/** A first-tide checklist that ticks itself off as you play. */
+function FirstSteps({ v }: { v: GameView }) {
+  const me = v.players.find((p) => p.id === v.you)!;
+  const [done, setDone] = useState({ pick: false, load: false, order: false, trade: false });
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setDone((d) => ({ ...d, order: true })), 9000);
+    return () => clearTimeout(t);
+  }, []);
+  const pick = done.pick || me.carry.some((c) => c.kind !== "cutlass") || v.hold.some((c) => c.owner === v.you);
+  const load = done.load || v.hold.some((c) => c.owner === v.you);
+  const trade = done.trade || v.offers.some((o) => (o.from === v.you || o.to === v.you) && o.status === "accepted");
+  const order = done.order;
+  useEffect(() => {
+    if (pick !== done.pick || load !== done.load || trade !== done.trade || order !== done.order) setDone({ pick, load, order, trade });
+  }, [pick, load, order, trade, done]);
+  if (hidden || (pick && load && order && trade)) return null;
+  const steps = [
+    { ok: pick, text: "Walk into a glowing crate to pick it up" },
+    { ok: load, text: "Carry it onto the gold gangway by the ferry" },
+    { ok: order, text: "Check your secret order above your hands" },
+    { ok: trade, text: "Tap Trade and swap with someone" },
+  ];
+  return (
+    <div className="first-steps" onClick={() => setHidden(true)} title="Tap to hide">
+      <span className="eyebrow">First steps</span>
+      <ol>
+        {steps.map((st) => <li key={st.text} className={st.ok ? "ok" : ""}>{st.ok ? "✓" : "○"} {st.text}</li>)}
+      </ol>
+    </div>
   );
 }
 

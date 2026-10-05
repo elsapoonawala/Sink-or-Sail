@@ -193,6 +193,29 @@ describe("crates, pearls and the cutlass", () => {
     expect(b.order).toBe(bOrder); // unfinished orders carry over
   });
 
+  it("puts crates with your name near you that only you can pick up", () => {
+    const s = game(2);
+    const [person, bot] = s.players;
+    const mine = s.crates.filter((c) => c.owner === person.id);
+    expect(mine.length).toBeGreaterThanOrEqual(2);
+    expect(s.crates.some((c) => c.owner === bot.id)).toBe(false);
+    bot.x = mine[0].x;
+    bot.y = mine[0].y;
+    tick(s, 1_000_100, seeded());
+    expect(bot.carry).toHaveLength(0);
+  });
+
+  it("lets you trade with someone across the island", () => {
+    const s = game(2);
+    const [a, b] = s.players;
+    b.x = a.x + 900;
+    a.carry = [{ id: "x1", kind: "fuel" }];
+    b.carry = [{ id: "x2", kind: "tools" }];
+    expect(makeOffer(s, a.id, b.id, { itemIds: ["x1"], pearls: 0 }, { kinds: { tools: 1 }, pearls: 0 }, 1_000_100)).toBeNull();
+    expect(respondOffer(s, b.id, s.offers[0].id, true)).toBeNull();
+    expect(a.carry[0].kind).toBe("tools");
+  });
+
   it("never loads the cutlass into the hold", () => {
     const s = game(1);
     const me = player(s, "p0")!;

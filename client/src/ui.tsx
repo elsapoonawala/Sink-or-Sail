@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useStore } from "./net";
 import { toggleMute, useVoice, voiceSupported } from "./voice";
 
-export function Icon({ name, size = 20 }: { name: "mic" | "micOff" | "chat" | "sound" | "soundOff" | "close" | "check" | "anchor" | "crown" | "copy" | "help" | "bot" | "plus" | "minus" | "wave" | "headset"; size?: number }) {
+export function Icon({ name, size = 20 }: { name: "mic" | "micOff" | "chat" | "sound" | "soundOff" | "close" | "check" | "anchor" | "crown" | "copy" | "help" | "bot" | "plus" | "minus" | "wave" | "headset" | "trade" | "sword"; size?: number }) {
   const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   switch (name) {
     case "mic":
@@ -35,6 +35,10 @@ export function Icon({ name, size = 20 }: { name: "mic" | "micOff" | "chat" | "s
       return <svg {...p}><path d="M12 5v14M5 12h14" /></svg>;
     case "minus":
       return <svg {...p}><path d="M5 12h14" /></svg>;
+    case "trade":
+      return <svg {...p}><path d="M4 8h13l-3-3M20 16H7l3 3" /></svg>;
+    case "sword":
+      return <svg {...p}><path d="M14.5 3.5L20 3l-.5 5.5L9 19l-4-4zM6 14l4 4M4 20l2.5-2.5" /></svg>;
     case "wave":
       return <svg {...p}><path d="M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0" /></svg>;
   }

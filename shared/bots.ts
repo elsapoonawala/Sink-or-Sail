@@ -30,10 +30,13 @@ export interface Brain {
   votedOn: string;
   voteAt: number;
   offerAt: number;
+  /** A short breather after picking something up. */
+  pauseUntil: number;
+  lastCarry: number;
 }
 
 export function newBrain(): Brain {
-  return { goal: null, path: [], thinkAt: 0, progressAt: 0, lastX: 0, lastY: 0, answered: new Set(), votedOn: "", voteAt: 0, offerAt: 0 };
+  return { goal: null, path: [], thinkAt: 0, progressAt: 0, lastX: 0, lastY: 0, answered: new Set(), votedOn: "", voteAt: 0, offerAt: 0, pauseUntil: 0, lastCarry: 0 };
 }
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -73,6 +76,12 @@ export function botTick(s: GameState, p: Player, b: Brain, now: number, dt: numb
   if (s.phase !== "play" || p.brig) return false;
   let changed = answerOffers(s, p, b, now, rng) || vote(s, p, b, now, rng);
   if (now < p.busyUntil) return changed;
+  if (p.carry.length > b.lastCarry) b.pauseUntil = now + 1200 + rng() * 1800;
+  b.lastCarry = p.carry.length;
+  if (now < b.pauseUntil) {
+    p.moving = false;
+    return changed;
+  }
   changed = swing(s, p, now, rng) || changed;
   changed = proposeTrade(s, p, b, now, rng) || changed;
 
@@ -146,6 +155,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     if (claimed.has(c.id) && b.goal?.kind === "crate" && b.goal.id !== c.id) continue;
     if (claimed.has(c.id) && b.goal?.kind !== "crate") continue;
     if (c.zone === "cave" && !s.caveOpen) continue;
+    if (c.owner && c.owner !== p.id) continue;
     if (footing(c.x, c.y, g) <= 0) continue;
     if (savedForPeople(s, p, c, now)) continue;
     let v = worth(s, c.kind, short);
@@ -201,8 +211,8 @@ function walk(s: GameState, p: Player, b: Brain, now: number, dt: number) {
   }
   const g = ground(s, now);
   const d = dist(p, target);
-  // Bots move a touch slower than people so humans get a fair shot at the crates.
-  const step = speedOf(p) * 0.85 * Math.max(0.3, footing(p.x, p.y, g)) * dt;
+  // Bots move slower than people so humans get a fair shot at the crates.
+  const step = speedOf(p) * 0.7 * Math.max(0.3, footing(p.x, p.y, g)) * dt;
   p.dir = Math.atan2(target.y - p.y, target.x - p.x);
   if (d <= step) {
     p.x = target.x;
@@ -242,7 +252,7 @@ function proposeTrade(s: GameState, p: Player, b: Brain, now: number, rng: Rng):
   b.offerAt = now + 4000 + rng() * 4000;
   if (s.offers.some((o) => o.from === p.id && o.status === "open")) return false;
   for (const q of s.players) {
-    if (q.id === p.id || q.brig || dist(p, q) > 100) continue;
+    if (q.id === p.id || q.brig || dist(p, q) > 450) continue;
     const want = q.carry.find((c) => orderNeeds(p, c.kind) > 0);
     if (!want) continue;
     const spare = cargo(p).find((c) => SUPPLIES.includes(c.kind as Supply) && !orderNeeds(p, c.kind) && c.kind !== want.kind);

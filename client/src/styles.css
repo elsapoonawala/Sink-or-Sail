@@ -649,6 +649,14 @@ code.link { font-family: var(--mono); font-size: 13px; color: var(--pearl-dim); 
 .walkie-count { grid-column: 1 / -1; color: #bde9e2; font-size: 11px; font-family: var(--mono); text-shadow: 0 1px 2px #000; }
 
 .hud-carry { left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom)); display: grid; gap: 6px; justify-items: center; width: min(460px, calc(100vw - 300px)); min-width: 220px; }
+.first-steps {
+  position: fixed; right: 10px; top: 210px; width: 230px; z-index: 5; cursor: pointer;
+  background: rgba(8, 30, 37, 0.85); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; backdrop-filter: blur(6px);
+}
+.first-steps ol { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; line-height: 1.3; }
+.first-steps li.ok { color: #7fcf8f; text-decoration: line-through; text-decoration-color: rgba(127, 207, 143, 0.5); }
+.trade-btn { display: inline-grid; grid-auto-flow: row; gap: 0; padding: 4px 10px; border-color: var(--brass); color: var(--brass-hi); }
+.trade-btn small { font-family: var(--mono); font-size: 10px; line-height: 1; }
 .order-chip {
   display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 12px; border-radius: 999px;
   background: rgba(8, 30, 37, 0.85); border: 1px solid var(--brass); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
@@ -732,6 +740,8 @@ kbd { display: inline-grid; place-items: center; width: 40px; height: 40px; bord
   .hud-feed li:not(:last-child) { display: none; }
   .hud-carry { left: 10px; transform: none; width: auto; min-width: 0; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 84px); justify-items: start; }
   .hud-carry .hint { position: fixed; left: 10px; right: 10px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 142px); font-size: 12px; }
+  .first-steps { top: auto; right: auto; left: 10px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 222px); width: min(250px, 66vw); padding: 7px 10px; }
+  .first-steps ol { font-size: 12px; }
   .hud-carry .order-chip { position: fixed; left: 10px; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 184px); gap: 6px; padding: 3px 8px; }
   .slot { width: 38px; height: 38px; }
   .slot svg { width: 34px !important; height: 24px !important; }
