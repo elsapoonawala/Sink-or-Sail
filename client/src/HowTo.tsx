@@ -20,7 +20,7 @@ const SLIDES = [
   },
   {
     title: "Grab crates, load the ferry",
-    body: "Walk into a glowing crate to pick it up (you carry 3). Walk onto the glowing gangway beside the ferry to load them. About 18 crates wash up every tide, in three waves, and every wave puts 2 crates with your name near you that only you can pick up.",
+    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the ferry: your crates go in by themselves (or tap the Load button near the dock). About 18 crates wash up every tide, in three waves, and every wave puts 2 crates with your name near you that only you can pick up.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -99,7 +99,7 @@ export function Rules() {
         <h4>4. Crates and the ferry</h4>
         <ul>
           <li>Walk into a glowing crate to pick it up. You carry 3 at a time (the Engineer carries 4). Tap something in your hands to drop it.</li>
-          <li>Walk onto the glowing gangway beside the ferry to load everything you carry.</li>
+          <li>To load, step onto the gold circle marked <b>LOAD HERE</b> at the ferry's gangway. Everything you carry goes into the hold by itself, and a message confirms it. Near the dock, the <b>Load</b> button walks you there.</li>
           <li>The ferry needs <b>8 fuel, 6 medicine and 5 tools</b> (quick game: 4, 3 and 2). The gauges at the top of the screen show what's aboard. The Antique Compass counts as 1 fuel once it's loaded.</li>
           <li>The hold has 30 spaces (quick game: 16), and a diamond takes 2 of them. The hold always keeps room for supplies the ferry still needs.</li>
           <li>About 18 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>

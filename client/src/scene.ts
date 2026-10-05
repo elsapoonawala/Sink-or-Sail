@@ -468,6 +468,28 @@ export function drawGangway(ctx: CanvasRenderingContext2D, t: number, active: bo
     ctx.lineTo(12, y);
     ctx.stroke();
   }
+  if (active) {
+    // A sign over the gangway so nobody has to guess where cargo goes.
+    const bob = Math.sin(t / 250) * 4;
+    ctx.translate(0, -GANGWAY.r - 34 + bob);
+    ctx.fillStyle = "rgba(20,34,40,.88)";
+    ctx.strokeStyle = "#f2d14b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-62, -16, 124, 30, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#f2d14b";
+    ctx.font = "700 14px 'Courier Prime', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("LOAD HERE", 0, 0);
+    ctx.beginPath();
+    ctx.moveTo(-9, 16);
+    ctx.lineTo(9, 16);
+    ctx.lineTo(0, 28);
+    ctx.fill();
+  }
   ctx.restore();
 }
 

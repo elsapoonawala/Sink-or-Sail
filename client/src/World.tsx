@@ -45,6 +45,8 @@ export interface WorldApi {
   me(): { x: number; y: number };
   /** Zoom the camera in (>1) or out (<1). */
   zoomBy(f: number): void;
+  /** Walk the local player to a spot, as if they had tapped it. */
+  walkTo(x: number, y: number): void;
 }
 
 export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid: string) => void; api: React.MutableRefObject<WorldApi | null> }) {
@@ -101,6 +103,9 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       },
       me: () => ({ x: me.x, y: me.y }),
       zoomBy: (f) => setZoom(zoom * f),
+      walkTo: (x, y) => {
+        target = { x, y };
+      },
     };
 
     const resize = () => {
@@ -402,7 +407,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       drawGlints(ctx, x0, y0, x1, y1, level, t);
       drawDock(ctx);
       drawFerry(ctx, t, Math.min(1, v.slots / v.capacity), sail, v.supplies.fuel >= v.needs.fuel && v.supplies.medicine >= v.needs.medicine && v.supplies.tools >= v.needs.tools);
-      if (v.phase === "play") drawGangway(ctx, t, !!self?.carry.length);
+      if (v.phase === "play") drawGangway(ctx, t, !!self?.carry.some((c) => c.kind !== "cutlass"));
 
       // Place names are painted on the land, under people and trees.
       ctx.font = `italic 700 ${Math.round(Math.max(15, 11 / scale))}px Georgia, serif`;

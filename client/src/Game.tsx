@@ -4,7 +4,7 @@ import {
   type GameView, type Order, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES,
   carryLimit, nearDive, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
 } from "../../shared/game";
-import { ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
+import { GANGWAY, ZONES, ZONE_IDS, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
 import { ChatPanel, SignalBar } from "./Comms";
 import { Rules } from "./HowTo";
@@ -66,6 +66,16 @@ export function Game({ v }: { v: GameView }) {
   useEffect(() => {
     startSea();
   }, []);
+  // Say plainly when your crates go into the hold.
+  const myHold = v.hold.filter((c) => c.owner === v.you);
+  const loadedRef = useRef<number | null>(null);
+  useEffect(() => {
+    const prev = loadedRef.current;
+    loadedRef.current = myHold.length;
+    if (prev === null || myHold.length <= prev) return;
+    const added = myHold.slice(prev).map((c) => c.kind);
+    toast(`Loaded onto the ferry: ${added.join(", ")}. The hold now has ${v.supplies.fuel}/${v.needs.fuel} fuel, ${v.supplies.medicine}/${v.needs.medicine} medicine, ${v.supplies.tools}/${v.needs.tools} tools.`);
+  }, [myHold.length]);
   // The intro card shows your character, then gets out of the way.
   useEffect(() => {
     const t = setTimeout(() => setIntro(false), 14000);
@@ -106,6 +116,12 @@ export function Game({ v }: { v: GameView }) {
       const wait = DUMP_COOLDOWN - (now - (me.lastDump ?? -DUMP_COOLDOWN));
       actions.push({ key: "dump", label: wait > 0 ? `Lie low ${Math.ceil(wait / 1000)}s` : "Sink a crate", sub: "Secret Wrecker move", onClick: () => act({ type: "dump" }), tone: wait > 0 ? "ghost" : "danger" });
     }
+    // Loading is automatic on the gangway; this button walks you there so it's never a mystery.
+    const cargo = me.carry.filter((c) => c.kind !== "cutlass");
+    const toGangway = Math.hypot(pos.x - GANGWAY.x, pos.y - GANGWAY.y);
+    if (cargo.length && !nearGangway(pos) && toGangway < 700) {
+      actions.push({ key: "load", label: `Load ${cargo.length} crate${cargo.length > 1 ? "s" : ""} onto the ferry`, sub: "Walks you onto the gold gangway", onClick: () => api.current?.walkTo(GANGWAY.x, GANGWAY.y), tone: "primary" });
+    }
     if (onDock(pos.x, pos.y)) actions.push({ key: "ready", label: me.ready ? "Not ready yet" : "Ready to sail", sub: me.ready ? "Tap to wait longer" : "Sails when most are ready", onClick: () => act({ type: "ready", ready: !me.ready }), tone: me.ready ? "ghost" : "primary" });
   }
 
@@ -136,8 +152,8 @@ export function Game({ v }: { v: GameView }) {
   else if (me.carry.length && nearGangway(pos) && holdFull) hint = "The hold is full. Trade or drop what you carry.";
   else if (blocked && me.carry.every((c) => c.kind === "cutlass")) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
   else if (blocked) hint = `The hold is saving its last space for the ${stillNeeded} supplies still needed. Bring those first.`;
-  else if (full) hint = "Hands full. Carry it to the ferry's gangway (follow the gold arrow).";
-  else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "Walk onto the glowing gangway by the ferry to load what you carry.";
+  else if (full) hint = "Hands full. Follow the gold arrow to the ferry and step onto the LOAD HERE circle.";
+  else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the ferry. Your crates go in by themselves.";
   else if (orderTip) hint = orderTip;
   else if (short.length) hint = `Find glowing crates. The ferry still needs ${short.map((k) => `${v.needs[k] - v.supplies[k]} ${k}`).join(", ")}.`;
   else hint = "Supplies are aboard! Grab treasure, then gather on the pier and call Ready.";
@@ -339,7 +355,7 @@ function FirstSteps({ v }: { v: GameView }) {
   if (hidden || (pick && load && order && trade)) return null;
   const steps = [
     { ok: pick, text: "Walk into a glowing crate to pick it up" },
-    { ok: load, text: "Carry it onto the gold gangway by the ferry" },
+    { ok: load, text: "Step onto the gold LOAD HERE circle by the ferry" },
     { ok: order, text: "Check your secret order above your hands" },
     { ok: trade, text: "Tap Trade and swap with someone" },
   ];
