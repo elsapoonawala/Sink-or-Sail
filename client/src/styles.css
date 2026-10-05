@@ -779,3 +779,19 @@ kbd { display: inline-grid; place-items: center; width: 40px; height: 40px; bord
   .hud-offers .offer p { font-size: 13px; margin-bottom: 6px; }
   .hud-offers .offers { gap: 6px; }
 }
+
+/* One goal: crates aboard. */
+.goal-bar { display: flex; align-items: center; gap: 8px; padding: 3px 10px; }
+.goal-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brass-hi); white-space: nowrap; }
+.goal-track { position: relative; width: clamp(90px, 22vw, 200px); height: 12px; border-radius: 999px; background: rgba(6, 23, 28, 0.7); border: 1px solid rgba(210, 167, 78, 0.45); overflow: hidden; }
+.goal-track > span { position: absolute; inset: 0 auto 0 0; background: linear-gradient(180deg, #f2d14b, #b8862e); border-radius: 999px; transition: width 0.4s ease; }
+.goal-bar b { font-family: var(--mono); font-size: 15px; color: var(--pearl); }
+.goal-bar.ok .goal-track > span { background: linear-gradient(180deg, #8be7dd, #1d7c6f); }
+.goal-bar.ok b, .goal-bar.ok .goal-label { color: #8be7dd; }
+.goal-bar.short .goal-track > span { background: linear-gradient(180deg, #e98a93, #a83240); }
+.goal-bar.big { padding: 10px 14px; border-radius: 14px; background: rgba(6, 23, 28, 0.5); border: 1px solid var(--line); }
+.goal-bar.big .goal-track { flex: 1; width: auto; height: 16px; }
+.goal-bar.big b { font-size: 20px; }
+/* She sinks: tilt, bob and go under. */
+@keyframes sail-lost { 0% { transform: translateX(80px); } 55% { transform: translateX(360px) translateY(0) rotate(0); } 65% { transform: translateX(380px) translateY(6px) rotate(-4deg); } 75% { transform: translateX(390px) translateY(10px) rotate(6deg); } 100% { transform: translateX(400px) translateY(90px) rotate(18deg); opacity: 0; } }
+.goal-bar.big { width: min(440px, 100%); }

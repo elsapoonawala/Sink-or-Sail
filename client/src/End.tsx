@@ -1,12 +1,10 @@
 import { useEffect, useRef } from "react";
-import { type GameView, ROLE_INFO, SUPPLIES } from "../../shared/game";
+import { type GameView, ROLE_INFO } from "../../shared/game";
 import { CardArt, Ferry, PearlIcon, Portrait } from "./art";
 import { ChatPanel, SignalBar } from "./Comms";
 import { act, leaveRoom } from "./net";
 import { sfx } from "./sound";
 import { Icon, MuteButton } from "./ui";
-
-const LABEL = { fuel: "fuel", medicine: "medicine", tools: "tools" } as const;
 
 export function End({ v }: { v: GameView }) {
   const r = v.result;
@@ -21,20 +19,15 @@ export function End({ v }: { v: GameView }) {
   const host = v.hostId === v.you;
   const me = v.players.find((p) => p.id === v.you)!;
   const name = (id: string) => (id === v.you ? "You" : v.players.find((p) => p.id === id)?.name ?? "?");
-  const short = SUPPLIES.filter((k) => r.supplies[k] < r.needs[k]);
   const iWon = r.winners === "islanders" ? !me.wrecker : r.winners === "wrecker" ? !!me.wrecker : false;
 
   const headline = r.success
     ? "The Saltmere Queen made it across"
-    : short.includes("fuel")
-      ? "The engine coughed and died at sea"
-      : short.includes("medicine")
-        ? "Fever swept the deck before land was sighted"
-        : "The old hull gave way halfway across";
+    : "Glug, glug... she sank";
   const left = r.fortunes.filter((f) => !f.aboard).map((f) => name(f.id));
   const sub = r.success
-    ? `Every supply was aboard${r.early ? ", and you left with time to spare" : " as the last tide came in"}.${left.length ? ` ${left.length > 1 ? `${left.slice(0, -1).join(", ")} and ${left[left.length - 1]}` : left[0]} missed the boat.` : ""}`
-    : `The ferry sailed short of ${short.map((k) => `${r.needs[k] - r.supplies[k]} ${LABEL[k]}`).join(", ")}.`;
+    ? `${r.loaded} crates were aboard${r.early ? ", and you left with time to spare" : " as the last tide came in"}.${left.length ? ` ${left.length > 1 ? `${left.slice(0, -1).join(", ")} and ${left[left.length - 1]}` : left[0]} missed the boat.` : ""}`
+    : `She sailed with only ${r.loaded} of the ${r.goal} crates she needed, and went down halfway across.`;
 
   return (
     <main className="end">
@@ -44,7 +37,7 @@ export function End({ v }: { v: GameView }) {
           <rect y="150" width="800" height="110" fill="url(#g-sea)" />
           <rect y="160" width="800" height="100" fill="url(#p-waves)" opacity=".3" />
           <path className="sinking-island" d="M-40 160 C0 120 60 110 120 130 C150 140 170 150 190 160 Z" fill="#2c6b4a" />
-          <g className="sail-path"><g transform="translate(0 112) scale(.8)"><Ferry fill={Math.min(1, (Math.min(v.supplies.fuel, v.needs.fuel) + Math.min(v.supplies.medicine, v.needs.medicine) + Math.min(v.supplies.tools, v.needs.tools)) / (v.needs.fuel + v.needs.medicine + v.needs.tools))} sailing /></g></g>
+          <g className="sail-path"><g transform="translate(0 112) scale(.8)"><Ferry fill={Math.min(1, v.loaded / v.goal)} sailing /></g></g>
           {r.success && <path className="far-shore" d="M700 160 C730 140 780 136 820 140 L820 160Z" fill="#3f8a5a" />}
         </svg>
       </div>
@@ -55,12 +48,11 @@ export function End({ v }: { v: GameView }) {
         <p className="lede">{sub}</p>
 
         <div className="end-gauges">
-          {SUPPLIES.map((k) => (
-            <div key={k} className={`gauge ${r.supplies[k] >= r.needs[k] ? "ok" : "short"}`}>
-              <CardArt kind={k} size={30} />
-              <b>{r.supplies[k]}/{r.needs[k]}</b>
-            </div>
-          ))}
+          <div className={`goal-bar big ${r.success ? "ok" : "short"}`}>
+            <span className="goal-label">Crates aboard</span>
+            <span className="goal-track"><span style={{ width: `${Math.min(100, (r.loaded / r.goal) * 100)}%` }} /></span>
+            <b>{r.loaded}/{r.goal}</b>
+          </div>
         </div>
 
         {r.wreckers.length > 0 && (

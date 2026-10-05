@@ -3,8 +3,8 @@
 
 import {
   type GameState, type Kind, type Player, type Rng, type Supply, PIER, SUPPLIES,
-  barter, carryLimit, castVote, dive, dump, ground, lightLamp, nearDive, nearGangway, nearLamp, nearStall, needsFor,
-  makeOffer, needsMet, respondOffer, savedForPeople, setReady, slotsUsed, speedOf, strike, suppliesIn, capacityOf, STRIKE_R,
+  barter, carryLimit, castVote, dive, dump, ground, goalOf, lightLamp, nearDive, nearGangway, nearLamp, nearStall,
+  makeOffer, needsMet, respondOffer, savedForPeople, setReady, slotsUsed, speedOf, strike, capacityOf, STRIKE_R,
 } from "./game";
 import { DIVE_SPOTS, GANGWAY, LAMP, MARKET_STALL, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
 
@@ -43,14 +43,10 @@ const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.
 
 /** What the ferry still lacks, counting what everyone is already carrying towards it. */
 function shortfall(s: GameState): Record<Supply, number> {
-  const need = needsFor(s);
-  const have = suppliesIn(s.hold);
-  const out = { fuel: 0, medicine: 0, tools: 0 };
-  for (const k of SUPPLIES) {
-    const carried = s.players.filter((p) => !p.wrecker).reduce((t, p) => t + p.carry.filter((c) => c.kind === k).length, 0);
-    out[k] = Math.max(0, need[k] - have[k] - carried);
-  }
-  return out;
+  // Any crate counts toward the goal, so every supply is wanted until the count is reached.
+  const carried = s.players.filter((p) => !p.wrecker).reduce((t, p) => t + p.carry.filter((c) => c.kind !== "cutlass").length, 0);
+  const left = Math.max(0, goalOf(s) - s.hold.length - carried);
+  return { fuel: left, medicine: left, tools: left };
 }
 
 /** How many more of this kind the player's own order still wants (counting what they carry). */

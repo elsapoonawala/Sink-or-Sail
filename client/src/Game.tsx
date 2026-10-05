@@ -90,7 +90,7 @@ export function Game({ v }: { v: GameView }) {
     loadedRef.current = myHold.length;
     if (prev === null || myHold.length <= prev) return;
     const added = myHold.slice(prev).map((c) => c.kind);
-    toast(`Loaded onto the ferry: ${added.join(", ")}. The hold now has ${v.supplies.fuel}/${v.needs.fuel} fuel, ${v.supplies.medicine}/${v.needs.medicine} medicine, ${v.supplies.tools}/${v.needs.tools} tools.`);
+    toast(v.loaded >= v.goal ? `Loaded ${added.join(", ")}. The ferry has ${v.loaded} crates: enough to sail!` : `Loaded ${added.join(", ")}. The ferry has ${v.loaded} of ${v.goal} crates.`);
   }, [myHold.length]);
   // The intro card shows your character, then gets out of the way.
   useEffect(() => {
@@ -159,7 +159,7 @@ export function Game({ v }: { v: GameView }) {
         : `Your order needs ${orderNeed.join(" and ")}. Find glowing crates, or trade for them.`;
   const swimmingNow = !me.mounted && swimming(pos.x, pos.y, { level: seaLevel(v.tide, v.tideStartedAt, v.totalTides, now), secretFound: v.secretFound, caveOpen: v.caveOpen });
   const full = me.carry.length >= carryLimit(me);
-  const short = SUPPLIES.filter((k) => v.supplies[k] < v.needs[k]);
+  const left = Math.max(0, v.goal - v.loaded);
   const onlyBlade = me.carry.length > 0 && nearGangway(pos) && me.carry.every((c) => c.kind === "cutlass");
   let hint = "";
   if (me.brig) hint = "You're locked in the ferry's brig. You'll sail, but you can't help or hinder.";
@@ -174,8 +174,8 @@ export function Game({ v }: { v: GameView }) {
   else if (full) hint = "Hands full. Follow the gold arrow to the ferry and step onto the LOAD HERE circle.";
   else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the ferry. Your crates go in by themselves.";
   else if (orderTip) hint = orderTip;
-  else if (short.length) hint = `Find glowing crates. The ferry still needs ${short.map((k) => `${v.needs[k] - v.supplies[k]} ${k}`).join(", ")}.`;
-  else hint = "Supplies are aboard! Grab treasure, then gather on the pier and call Ready.";
+  else if (left) hint = `Find glowing crates. The ferry needs ${left} more or she sinks.`;
+  else hint = "The ferry has enough crates! Extra ones pay you pearls. Be on the pier when she sails.";
 
   const lampOn = now < v.lampUntil;
   // Phones show only urgent news; everything else lives in the hint line.
@@ -208,12 +208,11 @@ export function Game({ v }: { v: GameView }) {
 
       {/* top centre: the ferry's hold */}
       <section className="hud-hold" aria-label="The ferry's hold">
-        {SUPPLIES.map((k) => (
-          <div key={k} className={`gauge ${v.supplies[k] >= v.needs[k] ? "ok" : ""}`} title={`${KIND_INFO[k].name}: ${v.supplies[k]} of ${v.needs[k]} aboard`}>
-            <CardArt kind={k} size={22} />
-            <b>{v.supplies[k]}/{v.needs[k]}</b>
-          </div>
-        ))}
+        <div className={`goal-bar ${v.loaded >= v.goal ? "ok" : ""}`} title={`${v.loaded} of ${v.goal} crates aboard`}>
+          <span className="goal-label">{v.loaded >= v.goal ? "Ready to sail" : "Load or sink"}</span>
+          <span className="goal-track"><span style={{ width: `${Math.min(100, (v.loaded / v.goal) * 100)}%` }} /></span>
+          <b>{v.loaded}/{v.goal}</b>
+        </div>
       </section>
 
       {/* top right: map and menu */}

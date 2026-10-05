@@ -439,7 +439,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       ctx.drawImage(water, 0, 0, W, H);
       drawGlints(ctx, x0, y0, x1, y1, level, t);
       drawDock(ctx);
-      drawFerry(ctx, t, Math.min(1, (Math.min(v.supplies.fuel, v.needs.fuel) + Math.min(v.supplies.medicine, v.needs.medicine) + Math.min(v.supplies.tools, v.needs.tools)) / (v.needs.fuel + v.needs.medicine + v.needs.tools)), sail, v.supplies.fuel >= v.needs.fuel && v.supplies.medicine >= v.needs.medicine && v.supplies.tools >= v.needs.tools);
+      drawFerry(ctx, t, Math.min(1, v.loaded / v.goal), sail, v.loaded >= v.goal);
       if (v.phase === "play") drawGangway(ctx, t, !!self?.carry.some((c) => c.kind !== "cutlass"));
       if (v.phase === "play") drawDoors(ctx, t, me, v.closed, (b) => v.crates.filter((c) => (!c.owner || c.owner === v.you) && buildingAt(c.x, c.y) === b).length);
 

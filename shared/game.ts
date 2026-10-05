@@ -19,9 +19,12 @@ export const ROLES: Role[] = ["diver", "engineer", "physician", "cartographer", 
 
 export const MIN_PLAYERS = 1;
 export const MAX_PLAYERS = 8;
-/** What the crossing needs, and how big the hold is, for a full game and a quick one. */
-export const NEEDS: Record<Supply, number> = { fuel: 8, medicine: 6, tools: 5 };
-export const QUICK_NEEDS: Record<Supply, number> = { fuel: 4, medicine: 3, tools: 2 };
+/** Crates the ferry must carry to make the crossing (any kind counts): at least this many,
+ *  more in bigger games, so a few busy bots can't do it without the people. */
+export const GOAL = 20;
+export const QUICK_GOAL = 12;
+export const GOAL_PER_PLAYER = 8;
+export const QUICK_GOAL_PER_PLAYER = 6;
 /** The hold no longer fills up; this is only a guide for bots and the ferry picture. */
 export const HOLD_SLOTS = 999;
 export const QUICK_HOLD_SLOTS = 999;
@@ -182,8 +185,8 @@ export interface Fx {
 
 export interface Result {
   success: boolean;
-  supplies: Record<Supply, number>;
-  needs: Record<Supply, number>;
+  loaded: number;
+  goal: number;
   winners: "islanders" | "wrecker" | "nobody";
   fortunes: { id: string; fortune: number; diamonds: number; pearls: number; aboard: boolean }[];
   grandFortune: string[];
@@ -283,10 +286,9 @@ export function slotsUsed(hold: Item[]): number {
   return hold.reduce((t, c) => t + KIND_INFO[c.kind].slots, 0);
 }
 
-export function needsFor(s: GameState): Record<Supply, number> {
-  const base = s.settings.quick ? QUICK_NEEDS : NEEDS;
-  const compass = s.hold.some((c) => c.kind === "compass");
-  return { ...base, fuel: base.fuel - (compass ? 1 : 0) };
+export function goalOf(s: { settings: Settings; players: unknown[] }): number {
+  const n = s.players.length;
+  return s.settings.quick ? Math.max(QUICK_GOAL, QUICK_GOAL_PER_PLAYER * n) : Math.max(GOAL, GOAL_PER_PLAYER * n);
 }
 
 export function capacityOf(s: GameState) {
@@ -300,9 +302,7 @@ export function suppliesIn(hold: Item[]): Record<Supply, number> {
 }
 
 export function needsMet(s: GameState) {
-  const have = suppliesIn(s.hold);
-  const need = needsFor(s);
-  return SUPPLIES.every((k) => have[k] >= need[k]);
+  return s.hold.length >= goalOf(s);
 }
 
 export function wreckerCount(s: GameState): number {
@@ -811,7 +811,7 @@ function loadAll(s: GameState, p: Player) {
   for (const item of [...p.carry]) {
     if (item.kind === "cutlass") continue; // you keep your weapon
     if (!worthLoading(s, item.kind)) continue;
-    const isSpare = SUPPLIES.includes(item.kind as Supply) && suppliesIn(s.hold)[item.kind as Supply] >= needsFor(s)[item.kind as Supply];
+    const isSpare = s.hold.length >= goalOf(s);
     p.carry = p.carry.filter((c) => c.id !== item.id);
     s.hold.push({ ...item, owner: p.id });
     if (item.kind === "diamond") p.loadedDiamonds++;
@@ -846,9 +846,9 @@ function sail(s: GameState, now: number, early: boolean) {
   s.phaseEndsAt = now + SAIL_MS;
   s.sailAt = null;
   for (const o of s.offers) if (o.status === "open") o.status = "cancelled";
-  const supplies = suppliesIn(s.hold);
-  const needs = needsFor(s);
-  const success = SUPPLIES.every((k) => supplies[k] >= needs[k]);
+  const loaded = s.hold.length;
+  const goal = goalOf(s);
+  const success = loaded >= goal;
   const wreckers = s.players.filter((p) => p.wrecker).map((p) => p.id);
   const fortunes = s.players.map((p) => {
     const aboard = p.brig || onDock(p.x, p.y);
@@ -860,8 +860,8 @@ function sail(s: GameState, now: number, early: boolean) {
   const best = Math.max(0, ...fortunes.filter((f) => !s.players.find((p) => p.id === f.id)?.wrecker).map((f) => f.fortune));
   s.result = {
     success,
-    supplies,
-    needs,
+    loaded,
+    goal,
     winners: success ? "islanders" : wreckers.length ? "wrecker" : "nobody",
     fortunes: fortunes.sort((a, b) => b.fortune - a.fortune),
     grandFortune: success && best > 0 ? fortunes.filter((f) => f.fortune === best && !s.players.find((p) => p.id === f.id)?.wrecker).map((f) => f.id) : [],
@@ -1209,8 +1209,9 @@ export interface GameView {
   hold: HoldItem[];
   slots: number;
   capacity: number;
-  needs: Record<Supply, number>;
-  supplies: Record<Supply, number>;
+  /** Crates aboard, and how many the crossing needs. */
+  goal: number;
+  loaded: number;
   offers: Offer[];
   vote: Vote | null;
   lampUntil: number;
@@ -1262,8 +1263,8 @@ export function viewFor(s: GameState, pid: string): GameView {
     hold: s.hold,
     slots: slotsUsed(s.hold),
     capacity: capacityOf(s),
-    needs: needsFor(s),
-    supplies: suppliesIn(s.hold),
+    goal: goalOf(s),
+    loaded: s.hold.length,
     offers: s.offers.filter((o) => o.from === pid || o.to === pid),
     vote: s.vote,
     lampUntil: s.lampUntil,

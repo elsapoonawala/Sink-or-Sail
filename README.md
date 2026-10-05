@@ -2,7 +2,7 @@
 
 Play it at **https://sink-or-sail.onrender.com**
 
-Saltmere is sinking. One grand old ferry waits at the harbour. Fill its hold with fuel, medicine and tools, and sail before the tide takes the island. Carry off whatever treasure you can fit.
+Saltmere is sinking. One grand old ferry waits at the harbour. Load enough crates before the tide takes the island, or she sinks. Carry off whatever treasure you can fit.
 
 A live multiplayer browser game for 1 to 8 players. One person starts a room, everyone else joins with the 4-letter code or the link, from any phone or laptop. No accounts, no installs. Bots fill empty seats. A game lasts five tides, about 15 minutes (or about 8 in quick mode).
 
@@ -11,7 +11,7 @@ A live multiplayer browser game for 1 to 8 players. One person starts a room, ev
 ## How to play
 
 - **Walk anywhere.** WASD or the arrow keys, or click where to go. On a phone, drag anywhere to steer or tap a spot. Saddle a horse at the Royal Stables to ride much faster.
-- **Carry crates to the ferry.** Walk into glowing crates to pick them up (you carry 3) and walk onto the gangway by the ferry to load them. The brass gauges show what the crossing still needs: 8 fuel, 6 medicine and 5 tools in a full game (4, 3 and 2 in a quick one). The hold never fills up: spares you load earn 2 pearls each.
+- **Carry crates to the ferry.** Walk into glowing crates to pick them up (you carry 3) and walk onto the gangway by the ferry to load them. The bar at the top shows how many crates are aboard: the crossing needs 8 per player (at least 20), or 6 per player (at least 12) in a quick game. Any crate counts; too few and she sinks. The hold never fills up: spares you load earn 2 pearls each.
 - **The tide takes the island.** Every three minutes the sea rises and drowns the next band of land, with any crates left on it. Dotted tide marks on the ground show where the water will reach. About 10 crates wash up each tide in three waves, plus 1 personal crate near each player per wave (usually something another player's order needs), (at the start, a third and two thirds of the way through), along with two diamonds and fresh pearls; the tide card counts down to the next wave. Scroll, pinch or use the zoom buttons to see more of the island, and the map marks every crate and pearl you've spotted.
 - **Treasure and secrets.** Diamonds you load are yours if the ferry makes it. Dive at the Turquoise Coves for pearls and barter them at the Pearl Market. Light the lighthouse to reveal every crate and a hidden stepping-stone path. The compass in the palace opens the sealed Sapphire Caves.
 - **All aboard.** Stand on the pier and tap Ready. When most players are ready, the ferry sails in 15 seconds; after the last tide it sails anyway. Anyone not on the pier is left behind. The richest Islander aboard is crowned Grand Fortune.

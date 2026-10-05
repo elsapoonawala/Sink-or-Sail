@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  type GameState, addPlayer, accuse, castVote, createGame, makeOffer, moveTo, needsFor, player, respondOffer,
-  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, NEEDS, SAIL_COUNTDOWN, WAVES,
+  type GameState, addPlayer, accuse, castVote, createGame, makeOffer, moveTo, player, respondOffer,
+  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
 import { BUILDING, BUILDINGS, DOCK, GANGWAY, ZONES, buildingAt, buildingOpen, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
@@ -45,7 +45,8 @@ describe("a game", () => {
     expect(s.phase).toBe("play");
     expect(s.players.every((p) => p.role)).toBe(true);
     expect(s.crates.length).toBeGreaterThan(3);
-    expect(needsFor(s)).toEqual({ ...NEEDS, fuel: NEEDS.fuel });
+    expect(goalOf(s)).toBe(24);
+    expect(goalOf(game(2))).toBe(GOAL);
   });
 
   it("lets you pick up a crate by walking into it and load it at the gangway", () => {
@@ -144,7 +145,7 @@ describe("crates, pearls and the cutlass", () => {
   it("never fills up, and pays pearls for each spare supply loaded", () => {
     const s = game(1);
     const me = player(s, "p0")!;
-    for (let i = 0; i < NEEDS.fuel; i++) s.hold.push({ id: `h${i}`, kind: "fuel", owner: "p0" });
+    for (let i = 0; i < GOAL; i++) s.hold.push({ id: `h${i}`, kind: "fuel", owner: "p0" });
     me.carry = [{ id: "x", kind: "fuel" }];
     const before = me.pearls;
     me.x = GANGWAY.x;
@@ -226,6 +227,20 @@ describe("crates, pearls and the cutlass", () => {
     me.y = GANGWAY.y;
     tick(s, 1_000_100, seeded());
     expect(me.carry.map((c) => c.kind)).toEqual(["cutlass"]);
+  });
+});
+
+describe("the goal", () => {
+  it("needs 8 crates a player (at least 20), any kind, and sinks if she's short", () => {
+    const s = game(4);
+    expect(goalOf(s)).toBe(32);
+    for (let i = 0; i < 31; i++) s.hold.push({ id: `h${i}`, kind: i % 2 ? "diamond" : "tools", owner: "p0" });
+    tick(s, s.endsAt + 1, seeded());
+    expect(s.result?.success).toBe(false);
+    const t = game(4);
+    for (let i = 0; i < 32; i++) t.hold.push({ id: `h${i}`, kind: "medicine", owner: "p0" });
+    tick(t, t.endsAt + 1, seeded());
+    expect(t.result?.success).toBe(true);
   });
 });
 
