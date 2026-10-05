@@ -20,7 +20,7 @@ export const ZONES: Record<ZoneId, Zone> = {
   harbour: { name: "The Harbour", x: 1160, y: 1300, r: 150, blurb: "Fuel and tools on the quay. Floods mid-game." },
   coves: { name: "Turquoise Coves", x: 430, y: 900, r: 170, blurb: "Dive for pearls. Among the first to go under." },
   shipwreck: { name: "The Shipwreck", x: 640, y: 1250, r: 130, blurb: "A diamond in the hold. Floods first." },
-  market: { name: "Pearl Market", x: 1760, y: 1060, r: 140, blurb: "Barter pearls for supplies." },
+  market: { name: "Pearl Market", x: 1760, y: 1060, r: 140, blurb: "Stalls of pearls and silks." },
   gardens: { name: "Hanging Gardens", x: 600, y: 470, r: 150, blurb: "Medicine grows on the terraces." },
   hotel: { name: "Grand Hotel", x: 1760, y: 470, r: 140, blurb: "Tools in the cellar, diamonds in the safe." },
   palace: { name: "Hilltop Palace", x: 1200, y: 640, r: 130, blurb: "Never floods. The compass is kept here." },

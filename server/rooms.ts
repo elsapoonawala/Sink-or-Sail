@@ -2,9 +2,9 @@
 // streams positions ten times a second and pushes a redacted view after every change.
 import { randomBytes, randomInt } from "node:crypto";
 import {
-  type GameState, type Offer, type Role, type Supply,
-  accuse, addPlayer, barter, cancelOffer, castVote, chooseRole, createGame, dive, dropItem, dump, lightLamp,
-  makeOffer, moveTo, player, removePlayer, respondOffer, setReady, startGame, strike, tick, toggleMount, enterBuilding, leaveBuilding, viewFor, MAX_PLAYERS,
+  type GameState, type Role,
+  accuse, addPlayer, castVote, chooseRole, createGame, dive, dropItem, dump, lightLamp,
+  moveTo, player, removePlayer, setReady, startGame, strike, tick, toggleMount, enterBuilding, leaveBuilding, viewFor, MAX_PLAYERS,
 } from "../shared/game";
 import { BOT_NAMES, type Brain, botTick, newBrain } from "../shared/bots";
 import type { ChatMessage, ClientAction, PosMessage, SignalKey, VoiceState } from "../shared/protocol";
@@ -223,9 +223,6 @@ export class Rooms {
       case "dive":
         err = dive(s, pid, Date.now());
         break;
-      case "barter":
-        err = barter(s, pid, a.kind as Supply, Date.now(), rng);
-        break;
       case "lamp":
         err = lightLamp(s, pid, Date.now());
         break;
@@ -252,15 +249,6 @@ export class Rooms {
         break;
       case "vote":
         err = castVote(s, pid, !!a.yes, Date.now());
-        break;
-      case "offer":
-        err = makeOffer(s, pid, a.to, a.give as Offer["give"], a.want as Offer["want"], Date.now());
-        break;
-      case "respond":
-        err = respondOffer(s, pid, a.offerId, !!a.accept);
-        break;
-      case "cancel":
-        err = cancelOffer(s, pid, a.offerId);
         break;
       default:
         return "Unknown action.";

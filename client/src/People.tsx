@@ -35,7 +35,7 @@ export function PeopleSheet({ v, onClose, onOpen }: { v: GameView; onClose: () =
   );
 }
 
-export function PlayerSheet({ v, pid, onClose, onTrade }: { v: GameView; pid: string; onClose: () => void; onTrade?: (pid: string) => void }) {
+export function PlayerSheet({ v, pid, onClose }: { v: GameView; pid: string; onClose: () => void }) {
   const p = v.players.find((x) => x.id === pid);
   const { voice } = useStore();
   const vu = useVoice();
@@ -45,7 +45,6 @@ export function PlayerSheet({ v, pid, onClose, onTrade }: { v: GameView; pid: st
   const me = v.players.find((x) => x.id === v.you)!;
   const inVoice = voice[p.id]?.on;
   const vol = vu.volume[p.id] ?? 1;
-  const canTrade = !isYou && v.phase === "play" && onTrade && !p.brig && !me.brig;
   const canAccuse = !isYou && v.phase === "play" && v.wreckerCount > 0 && !me.accused && !me.brig && !p.brig && v.vote?.outcome !== "open";
   return (
     <Sheet title={isYou ? "You" : p.name} onClose={onClose}>
@@ -81,7 +80,6 @@ export function PlayerSheet({ v, pid, onClose, onTrade }: { v: GameView; pid: st
       )}
       {!isYou && !inVoice && !p.bot && <p className="muted small">{p.name} isn't on the walkie-talkie. Signals and chat still reach them.</p>}
       <div className="row gap wrap">
-        {canTrade && <button className="btn primary" onClick={() => { onTrade!(p.id); onClose(); }}>Trade with {p.name}</button>}
         {canAccuse && (
           <button className="btn ghost danger" onClick={() => { act({ type: "accuse", target: p.id }); onClose(); }}>
             Accuse {p.name} of wrecking

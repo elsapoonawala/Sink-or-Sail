@@ -1,8 +1,8 @@
 // The in-game screen: the living island with a brass-and-velvet HUD over it.
 import { useEffect, useRef, useState } from "react";
 import {
-  type GameView, type Order, type Supply, BARTER_COST, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R, SUPPLIES,
-  carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nearStall, nextWaveAt,
+  type GameView, DUMP_COOLDOWN, KIND_INFO, ROLE_INFO, STRIKE_R,
+  carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nextWaveAt,
 } from "../../shared/game";
 import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
@@ -11,12 +11,11 @@ import { Rules } from "./HowTo";
 import { act, leaveRoom, live, setChatOpen, toast, useStore } from "./net";
 import { Allegiance, PeopleSheet, PlayerSheet } from "./People";
 import { setSound, soundOn, startSea } from "./sound";
-import { OffersTray, TradeComposer } from "./Trade";
 import { Icon, Sheet, copyText } from "./ui";
 import { pttDown, pttUp, toggleMute, useVoice, voiceSupported } from "./voice";
 import { MiniMap, World, type WorldApi } from "./World";
 
-type Panel = null | "chat" | "people" | "menu" | "barter" | "you" | "map" | "help" | "trade";
+type Panel = null | "chat" | "people" | "menu" | "you" | "map" | "help";
 
 /** The nearest player you could attack, and how far away they are. */
 /** What each building holds, for the Enter button. */
@@ -27,7 +26,7 @@ const INSIDE: Record<BuildingId, string> = {
   lighthouse: "Fuel drums and the lamp",
   stables: "Tools and saddles",
   shipwreck: "Fuel and a diamond in the hold",
-  market: "A supply and the barter counter",
+  market: "A supply crate",
 };
 
 function attackTarget(v: GameView, pos: { x: number; y: number }, now: number) {
@@ -64,7 +63,6 @@ export function Game({ v }: { v: GameView }) {
   const api = useRef<WorldApi | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
   const [sheetFor, setSheetFor] = useState<string | null>(null);
-  const [tradeWith, setTradeWith] = useState<string | null>(null);
   const [intro, setIntro] = useState(true);
   const now = useNow(250);
   const seenAt = useRef(new Map<number, number>());
@@ -105,7 +103,6 @@ export function Game({ v }: { v: GameView }) {
   const sailing = v.phase === "sailing";
 
   // What can I do right here?
-  const others = v.players.filter((p) => p.id !== v.you && !p.brig);
   const actions: { key: string; label: string; sub?: string; onClick: () => void; tone?: "primary" | "danger" | "ghost" }[] = [];
   const busy = now < me.busyUntil;
   const down = now < me.downUntil;
@@ -130,7 +127,6 @@ export function Game({ v }: { v: GameView }) {
       const wait = v.diveReady[dive] - now;
       actions.push({ key: "dive", label: wait > 0 ? `Oysters regrow in ${Math.ceil(wait / 1000)}s` : "Dive for pearls", sub: me.role === "diver" ? "+4 pearls" : "+2 pearls", onClick: () => act({ type: "dive" }), tone: wait > 0 ? "ghost" : "primary" });
     }
-    if (nearStall(pos)) actions.push({ key: "barter", label: "Barter at the stall", sub: `${BARTER_COST} pearls a crate · ${v.marketStock} left`, onClick: () => setPanel("barter"), tone: "primary" });
     if (nearLamp(pos)) actions.push({ key: "lamp", label: v.lampTide === v.tide ? "Lamp already lit this tide" : "Light the lamp", sub: "Reveals every crate", onClick: () => act({ type: "lamp" }), tone: v.lampTide === v.tide ? "ghost" : "primary" });
     if (!me.mounted && nearStables(pos)) actions.push({ key: "mount", label: "Saddle a horse", sub: "Ride much faster", onClick: () => act({ type: "mount" }), tone: "primary" });
     if (me.wrecker && nearGangway(pos)) {
@@ -146,17 +142,7 @@ export function Game({ v }: { v: GameView }) {
     if (onDock(pos.x, pos.y)) actions.push({ key: "ready", label: me.ready ? "Not ready yet" : "Ready to sail", sub: me.ready ? "Tap to wait longer" : "Sails when most are ready", onClick: () => act({ type: "ready", ready: !me.ready }), tone: me.ready ? "ghost" : "primary" });
   }
 
-  // The next step for your secret order: find it, or trade for it.
-  const orderNeed = me.order && !me.order.done ? SUPPLIES.filter((k) => (me.order!.want[k] ?? 0) > (me.order!.got[k] ?? 0) + me.carry.filter((c) => c.kind === k).length) : [];
-  const holder = orderNeed.length ? others.find((p) => p.carry.some((c) => orderNeed.includes(c.kind as Supply))) : undefined;
   const mine = v.crates.some((c) => c.owner === v.you);
-  const orderTip = !orderNeed.length
-    ? ""
-    : holder
-      ? `Your order needs ${orderNeed.join(" and ")}. ${holder.name} is carrying some: tap Trade to make an offer.`
-      : mine
-        ? `Your order needs ${orderNeed.join(" and ")}. Grab the crates with your name: others need them, so trade them for what you need.`
-        : `Your order needs ${orderNeed.join(" and ")}. Find glowing crates, or trade for them.`;
   const swimmingNow = !me.mounted && swimming(pos.x, pos.y, { level: seaLevel(v.tide, v.tideStartedAt, v.totalTides, now), secretFound: v.secretFound, caveOpen: v.caveOpen });
   const full = me.carry.length >= carryLimit(me);
   const left = Math.max(0, v.goal - v.loaded);
@@ -173,8 +159,7 @@ export function Game({ v }: { v: GameView }) {
   else if (onlyBlade) hint = "You keep the cutlass. Walk up to someone and strike to make them drop their cargo.";
   else if (full) hint = "Hands full. Follow the gold arrow to the Kohinoor and step onto the LOAD HERE circle.";
   else if (me.carry.length && me.carry.some((c) => c.kind !== "cutlass")) hint = "To load, step onto the gold LOAD HERE circle by the Kohinoor. Your crates go in by themselves.";
-  else if (orderTip) hint = orderTip;
-  else if (left) hint = `Find glowing crates. The Kohinoor needs ${left} more or she sinks.`;
+  else if (left) hint = `Find glowing crates${mine ? " (the gold one marked Yours is saved for you)" : ""}. The Kohinoor needs ${left} more or she sinks.`;
   else hint = "The Kohinoor has enough crates! Extra ones pay you pearls. Be on the pier when she sails.";
 
   const lampOn = now < v.lampUntil;
@@ -236,7 +221,6 @@ export function Game({ v }: { v: GameView }) {
       {/* banners */}
       {v.sailAt && <div className="banner sail">The Kohinoor sails in {Math.ceil((v.sailAt - now) / 1000)}s</div>}
       {v.vote?.outcome === "open" && <VoteCard v={v} now={now} />}
-      <div className="hud-offers"><OffersTray v={v} /></div>
       {v.phase === "play" && v.tide === 1 && !me.brig && !intro && <FirstSteps v={v} />}
       {intro && me.role && (
         <div className="intro-card" onClick={() => setIntro(false)}>
@@ -254,12 +238,6 @@ export function Game({ v }: { v: GameView }) {
       {/* bottom left: walkie-talkie and comms */}
       <section className="hud-comms">
         <Walkie />
-        {v.phase === "play" && !me.brig && (
-          <button className="icon-btn big trade-btn" onClick={() => setPanel("trade")} aria-label="Trade with anyone">
-            <Icon name="trade" />
-            <small>Trade</small>
-          </button>
-        )}
         <button className="icon-btn big" onClick={() => setPanel("chat")} aria-label="Chat and signals">
           <Icon name="chat" />
           {unread > 0 && <span className="badge">{unread}</span>}
@@ -271,7 +249,6 @@ export function Game({ v }: { v: GameView }) {
 
       {/* bottom centre: what you carry */}
       <section className="hud-carry">
-        {v.phase === "play" && me.order && !me.brig && <OrderChip order={me.order} />}
         <p className="hint">{hint}</p>
         <div className="carry-row">
           {Array.from({ length: carryLimit(me) }, (_, i) => {
@@ -305,28 +282,7 @@ export function Game({ v }: { v: GameView }) {
           <ChatPanel v={v} />
         </Sheet>
       )}
-      {panel === "trade" && (
-        <Sheet title="Trade with anyone" onClose={() => setPanel(null)}>
-          <p className="muted small">Pick a player, offer what you carry or pearls, and ask for what they carry. If they accept, the crates swap at once, wherever you both are.</p>
-          {me.order && !me.order.done && orderNeed.length > 0 && <p className="small order-note">Your order still needs {orderNeed.join(" and ")}.</p>}
-          <ul className="people">
-            {others.map((p) => (
-              <li key={p.id}>
-                <button className="person" onClick={() => { setPanel(null); setTradeWith(p.id); }}>
-                  <Portrait role={p.role} seat={p.seat} size={40} />
-                  <span className="person-name">
-                    <b>{p.name}{p.bot ? " (bot)" : ""}</b>
-                    <small className="muted">Carrying {p.carry.length ? p.carry.map((c) => KIND_INFO[c.kind].name.toLowerCase()).join(", ") : "nothing"} · {p.pearls} pearls</small>
-                  </span>
-                  {p.carry.some((c) => orderNeed.includes(c.kind as Supply)) && <small className="tag ok">has what you need</small>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Sheet>
-      )}
       {panel === "people" && <PeopleSheet v={v} onClose={() => setPanel(null)} onOpen={(pid) => { setPanel(null); setSheetFor(pid); }} />}
-      {panel === "barter" && <BarterSheet v={v} onClose={() => setPanel(null)} />}
       {panel === "help" && (
         <Sheet title="Rules" onClose={() => setPanel(null)} wide>
           <Allegiance wrecker={!!me.wrecker} count={v.wreckerCount} />
@@ -346,8 +302,7 @@ export function Game({ v }: { v: GameView }) {
         </Sheet>
       )}
       {panel === "menu" && <MenuSheet v={v} onClose={() => setPanel(null)} />}
-      {sheetFor && <PlayerSheet v={v} pid={sheetFor} onClose={() => setSheetFor(null)} onTrade={(pid) => setTradeWith(pid)} />}
-      {tradeWith && <TradeComposer v={v} to={tradeWith} onClose={() => setTradeWith(null)} />}
+      {sheetFor && <PlayerSheet v={v} pid={sheetFor} onClose={() => setSheetFor(null)} />}
     </main>
   );
 }
@@ -355,25 +310,18 @@ export function Game({ v }: { v: GameView }) {
 /** A first-tide checklist that ticks itself off as you play. */
 function FirstSteps({ v }: { v: GameView }) {
   const me = v.players.find((p) => p.id === v.you)!;
-  const [done, setDone] = useState({ pick: false, load: false, order: false, trade: false });
+  const [done, setDone] = useState({ pick: false, load: false });
   const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setDone((d) => ({ ...d, order: true })), 9000);
-    return () => clearTimeout(t);
-  }, []);
   const pick = done.pick || me.carry.some((c) => c.kind !== "cutlass") || v.hold.some((c) => c.owner === v.you);
   const load = done.load || v.hold.some((c) => c.owner === v.you);
-  const trade = done.trade || v.offers.some((o) => (o.from === v.you || o.to === v.you) && o.status === "accepted");
-  const order = done.order;
   useEffect(() => {
-    if (pick !== done.pick || load !== done.load || trade !== done.trade || order !== done.order) setDone({ pick, load, order, trade });
-  }, [pick, load, order, trade, done]);
-  if (hidden || (pick && load && order && trade)) return null;
+    if (pick !== done.pick || load !== done.load) setDone({ pick, load });
+  }, [pick, load, done]);
+  if (hidden || (pick && load)) return null;
   const steps = [
     { ok: pick, text: "Walk into a glowing crate to pick it up" },
     { ok: load, text: "Step onto the gold LOAD HERE circle by the Kohinoor" },
-    { ok: order, text: "Check your secret order above your hands" },
-    { ok: trade, text: "Tap Trade and swap with someone" },
+    { ok: false, text: "Be on the pier when she sails" },
   ];
   return (
     <div className="first-steps" onClick={() => setHidden(true)} title="Tap to hide">
@@ -381,22 +329,6 @@ function FirstSteps({ v }: { v: GameView }) {
       <ol>
         {steps.map((st) => <li key={st.text} className={st.ok ? "ok" : ""}>{st.ok ? "✓" : "○"} {st.text}</li>)}
       </ol>
-    </div>
-  );
-}
-
-/** Your private passenger order for this tide. */
-function OrderChip({ order }: { order: Order }) {
-  return (
-    <div className={`order-chip ${order.done ? "done" : ""}`} title="Your secret order: load these crates yourself for pearls">
-      <span className="eyebrow">{order.done ? "Order filled" : "Your order"}</span>
-      {SUPPLIES.filter((k) => order.want[k]).map((k) => (
-        <span key={k} className={`order-item ${(order.got[k] ?? 0) >= (order.want[k] ?? 0) ? "ok" : ""}`}>
-          <CardArt kind={k} size={18} />
-          <b>{order.got[k] ?? 0}/{order.want[k]}</b>
-        </span>
-      ))}
-      <span className="order-reward"><PearlIcon size={14} /> {order.done ? "earned" : `+${order.reward}`}</span>
     </div>
   );
 }
@@ -480,28 +412,6 @@ function VoteCard({ v, now }: { v: GameView; now: number }) {
       {isTarget && <p className="small">Plead your case on the walkie-talkie!</p>}
       {voted && !isTarget && <p className="small muted">You can change your vote until it closes.</p>}
     </div>
-  );
-}
-
-function BarterSheet({ v, onClose }: { v: GameView; onClose: () => void }) {
-  const me = v.players.find((p) => p.id === v.you)!;
-  const buy = async (k: Supply) => {
-    const err = await act({ type: "barter", kind: k });
-    if (!err) onClose();
-  };
-  return (
-    <Sheet title="The Pearl Market" onClose={onClose}>
-      <p className="muted small">The merchant trades a crate for {BARTER_COST} pearls{me.role === "jeweler" ? ", and never turns you down." : ", if he likes your face. He sometimes says no; just ask again."} {v.marketStock} crate{v.marketStock === 1 ? "" : "s"} left this tide. You have {me.pearls} pearls.</p>
-      <div className="barter-grid">
-        {SUPPLIES.map((k) => (
-          <button key={k} className="barter-item" onClick={() => buy(k)} disabled={me.pearls < BARTER_COST || v.marketStock <= 0}>
-            <CardArt kind={k} size={40} />
-            <b>{KIND_INFO[k].name}</b>
-            <small><PearlIcon size={12} /> {BARTER_COST}</small>
-          </button>
-        ))}
-      </div>
-    </Sheet>
   );
 }
 

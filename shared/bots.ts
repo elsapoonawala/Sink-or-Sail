@@ -1,12 +1,12 @@
 // Practice bots: they walk the island like everyone else, fetch what the ferry needs,
-// answer trades and vote. The server runs botTick() for each bot every frame.
+// and vote. The server runs botTick() for each bot every frame.
 
 import {
   type GameState, type Kind, type Player, type Rng, type Supply, PIER, SUPPLIES,
-  barter, carryLimit, castVote, dive, dump, ground, goalOf, lightLamp, nearDive, nearGangway, nearLamp, nearStall,
-  makeOffer, needsMet, respondOffer, savedForPeople, setReady, slotsUsed, speedOf, strike, capacityOf, STRIKE_R,
+  carryLimit, castVote, dive, dump, ground, goalOf, lightLamp, nearDive, nearGangway, nearLamp,
+  needsMet, savedForPeople, setReady, slotsUsed, speedOf, strike, capacityOf, STRIKE_R,
 } from "./game";
-import { DIVE_SPOTS, GANGWAY, LAMP, MARKET_STALL, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
+import { DIVE_SPOTS, GANGWAY, LAMP, ZONES, ZONE_IDS, findPath, footing, onDock } from "./world";
 
 export const BOT_NAMES = ["Odette", "Augustin", "Ines", "Florian", "Margaux", "Teodor", "Beatrix", "Lucien"];
 
@@ -15,7 +15,6 @@ type Goal =
   | { kind: "gangway"; x: number; y: number }
   | { kind: "dock"; x: number; y: number }
   | { kind: "dive"; x: number; y: number; spot: number }
-  | { kind: "barter"; x: number; y: number; supply: Supply }
   | { kind: "lamp"; x: number; y: number }
   | { kind: "wander"; x: number; y: number };
 
@@ -49,14 +48,6 @@ function shortfall(s: GameState): Record<Supply, number> {
   return { fuel: left, medicine: left, tools: left };
 }
 
-/** How many more of this kind the player's own order still wants (counting what they carry). */
-function orderNeeds(p: Player, kind: Kind, countCarried = true): number {
-  const o = p.order;
-  if (!o || o.done || !SUPPLIES.includes(kind as Supply)) return 0;
-  const k = kind as Supply;
-  return Math.max(0, (o.want[k] ?? 0) - (o.got[k] ?? 0) - (countCarried ? p.carry.filter((c) => c.kind === k).length : 0));
-}
-
 /** What a bot carries that's meant for the ferry (not its cutlass). */
 const cargo = (p: Player) => p.carry.filter((c) => c.kind !== "cutlass");
 
@@ -70,7 +61,7 @@ function worth(s: GameState, kind: Kind, short: Record<Supply, number>): number 
 /** Called every server tick (dt in seconds). Returns true if the bot changed shared state. */
 export function botTick(s: GameState, p: Player, b: Brain, now: number, dt: number, rng: Rng, claimed: Set<string>): boolean {
   if (s.phase !== "play" || p.brig) return false;
-  let changed = answerOffers(s, p, b, now, rng) || vote(s, p, b, now, rng);
+  let changed = vote(s, p, b, now, rng);
   if (now < p.busyUntil) return changed;
   if (p.carry.length > b.lastCarry) b.pauseUntil = now + 1200 + rng() * 1800;
   b.lastCarry = p.carry.length;
@@ -79,13 +70,11 @@ export function botTick(s: GameState, p: Player, b: Brain, now: number, dt: numb
     return changed;
   }
   changed = swing(s, p, now, rng) || changed;
-  changed = proposeTrade(s, p, b, now, rng) || changed;
 
   // Arrived somewhere? Do the thing that brought us here.
   const g = b.goal;
   if (g && dist(p, g) < 26) {
     if (g.kind === "dive" && nearDive(p) >= 0) changed = !dive(s, p.id, now) || changed;
-    if (g.kind === "barter" && nearStall(p)) changed = !barter(s, p.id, g.supply, now, rng) || changed;
     if (g.kind === "lamp" && nearLamp(p)) changed = !lightLamp(s, p.id, now) || changed;
     if (g.kind === "gangway" && p.wrecker && nearGangway(p) && rng() < 0.5) changed = !dump(s, p.id, now, rng) || changed;
     if (g.kind === "dock" || (g.kind === "gangway" && onDock(p.x, p.y))) changed = maybeReady(s, p, now) || changed;
@@ -156,7 +145,6 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
     if (footing(c.x, c.y, g) <= 0) continue;
     if (savedForPeople(s, p, c, now)) continue;
     let v = worth(s, c.kind, short);
-    if (v > 0 && orderNeeds(p, c.kind)) v += 3;
     if (p.wrecker && SUPPLIES.includes(c.kind as Supply)) v += 3; // hoard supplies so nobody else loads them
     if (v <= 0) continue;
     const score = v / (dist(p, c) + 250);
@@ -172,11 +160,7 @@ function think(s: GameState, p: Player, b: Brain, now: number, rng: Rng, claimed
   if (p.wrecker && cargo(p).length >= 2 && now - p.lastDump > 45_000 && s.hold.length) return set({ kind: "gangway", ...GANGWAY });
   if (best && bestScore > 0.004) return set({ kind: "crate", id: best.id, x: best.x, y: best.y });
 
-  // Nothing worth fetching nearby: barter, dive, light the lamp or roam.
-  const needed = SUPPLIES.filter((k) => short[k] > 0);
-  if (p.pearls >= 3 && s.marketStock > 0 && needed.length && footing(MARKET_STALL.x, MARKET_STALL.y + 20, g) > 0) {
-    return set({ kind: "barter", x: MARKET_STALL.x, y: MARKET_STALL.y + 20, supply: needed[0] });
-  }
+  // Nothing worth fetching nearby: dive, light the lamp or roam.
   if (s.tide >= 3 && s.lampTide !== s.tide && rng() < 0.15 && footing(LAMP.x, LAMP.y + 25, g) > 0) return set({ kind: "lamp", x: LAMP.x, y: LAMP.y + 25 });
   const spot = Math.floor(rng() * DIVE_SPOTS.length);
   if (rng() < 0.4 && now >= s.diveReady[spot]) {
@@ -241,54 +225,6 @@ function walk(s: GameState, p: Player, b: Brain, now: number, dt: number) {
     b.path = [];
     b.progressAt = now;
   }
-}
-
-/** A bot near someone holding what its order wants offers a swap, or pearls. */
-function proposeTrade(s: GameState, p: Player, b: Brain, now: number, rng: Rng): boolean {
-  if (now < b.offerAt) return false;
-  b.offerAt = now + 4000 + rng() * 4000;
-  if (s.offers.some((o) => o.from === p.id && o.status === "open")) return false;
-  for (const q of s.players) {
-    if (q.id === p.id || q.brig || dist(p, q) > 450) continue;
-    // Don't pester people: one bot offer at a time, and at most one every 45 seconds.
-    if (!q.bot && s.offers.some((o) => o.to === q.id && (o.status === "open" || (now - o.at < 45_000 && s.players.find((x) => x.id === o.from)?.bot)))) continue;
-    const want = q.carry.find((c) => orderNeeds(p, c.kind) > 0);
-    if (!want) continue;
-    const spare = cargo(p).find((c) => SUPPLIES.includes(c.kind as Supply) && !orderNeeds(p, c.kind) && c.kind !== want.kind);
-    const give = spare ? { itemIds: [spare.id], pearls: 0 } : p.pearls >= 2 ? { itemIds: [], pearls: 2 } : null;
-    if (!give) continue;
-    if (!makeOffer(s, p.id, q.id, give, { kinds: { [want.kind]: 1 }, pearls: 0 }, now)) {
-      b.offerAt = now + 15000 + rng() * 10000;
-      return true;
-    }
-  }
-  return false;
-}
-
-function valueFor(s: GameState, k: Kind, p: Player) {
-  if (orderNeeds(p, k, false)) return 5;
-  const short = shortfall(s);
-  if (k === "diamond") return 3;
-  if (k === "compass") return 3;
-  if (k === "cutlass") return 2;
-  return short[k] > 0 ? 4 : 1;
-}
-
-function answerOffers(s: GameState, p: Player, b: Brain, now: number, rng: Rng): boolean {
-  let changed = false;
-  for (const o of s.offers) {
-    if (o.to !== p.id || o.status !== "open" || b.answered.has(o.id)) continue;
-    if (now - o.at < 1800) continue;
-    b.answered.add(o.id);
-    const from = s.players.find((q) => q.id === o.from);
-    const gain = o.giveItems.reduce((t, c) => t + valueFor(s, c.kind, p), 0) + o.give.pearls;
-    const cost = (Object.entries(o.want.kinds) as [Kind, number][]).reduce((t, [k, n]) => t + valueFor(s, k, p) * n, 0) + o.want.pearls;
-    const yes = from?.role === "jeweler" || gain >= cost || (gain >= cost - 1 && rng() < 0.5);
-    const err = respondOffer(s, p.id, o.id, yes);
-    if (err && yes) respondOffer(s, p.id, o.id, false);
-    changed = true;
-  }
-  return changed;
 }
 
 function vote(s: GameState, p: Player, b: Brain, now: number, rng: Rng): boolean {

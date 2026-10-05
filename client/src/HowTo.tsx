@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ROLES, ROLE_INFO } from "../../shared/game";
-import { CardArt, Ferry, PearlIcon } from "./art";
+import { CardArt, Ferry } from "./art";
 
 const SLIDES = [
   {
@@ -20,7 +20,7 @@ const SLIDES = [
   },
   {
     title: "Grab crates, load the Kohinoor",
-    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the Kohinoor: your crates go in by themselves (or tap the Load button near the dock). About 10 crates wash up every tide, in three waves, plus one with your name near you each wave. There aren't enough for anyone to fill their order alone, so trade.",
+    body: "Walk into a glowing crate to pick it up (you carry 3). To load, step onto the gold circle marked LOAD HERE beside the Kohinoor: your crates go in by themselves (or tap the Load button near the dock). About 10 crates wash up every tide, in three waves, plus one with your name near you each wave that only you can take.",
     art: (
       <div className="howto-cards">
         <CardArt kind="fuel" size={50} />
@@ -35,13 +35,8 @@ const SLIDES = [
     art: <div className="howto-tide"><span /><span /><span /></div>,
   },
   {
-    title: "Your secret order",
-    body: "Every tide a passenger gives you a private order, like 2 medicine and 1 tools. Load those crates yourself to earn 6 pearls, then you get a new order at the next tide. If someone is holding what you need, tap Trade and make them an offer, from anywhere on the island.",
-    art: <div className="howto-cards"><CardArt kind="medicine" size={44} /><CardArt kind="tools" size={44} /><span className="howto-pearls"><PearlIcon size={26} /><PearlIcon size={22} /></span></div>,
-  },
-  {
     title: "Get rich",
-    body: "Your fortune is your pearls plus 3 for every diamond you load. Pick pearls up on beaches, dive at the coves, fill orders. Two diamonds turn up each tide, and three more sit in the sealed cave: carry the palace compass to its door.",
+    body: "Your fortune is your pearls plus 3 for every diamond you load. Pick pearls up on beaches and dive at the coves. Two diamonds turn up each tide, and three more sit in the sealed cave: carry the palace compass to its door.",
     art: (
       <div className="howto-cards">
         <CardArt kind="diamond" size={54} />
@@ -73,8 +68,8 @@ const SLIDES = [
 const QUICK: { icon: string; text: React.ReactNode }[] = [
   { icon: "📦", text: <>Walk into glowing crates to pick them up, outside and <b>inside buildings</b>.</> },
   { icon: "⛴", text: <>Step onto the gold <b>LOAD HERE</b> circle by our ferry, <b>the Kohinoor</b>, to load them.</> },
-  { icon: "🎯", text: <>Load <b>8 crates per player</b> (at least 20) onto the Kohinoor before the last tide, <b>or she sinks</b>. The bar at the top counts them.</> },
-  { icon: "💎", text: <>Get rich: pearls, diamonds, and your secret order. <b>Trade</b> with anyone, any time.</> },
+  { icon: "🎯", text: <>Load <b>7 crates per player</b> (at least 20) onto the Kohinoor before the last tide, <b>or she sinks</b>. The bar at the top counts them.</> },
+  { icon: "💎", text: <>Grab <b>pearls and diamonds</b> too: the richest player aboard wins.</> },
   { icon: "⚓", text: <>Be <b>on the pier</b> when she sails, or you're left behind.</> },
 ];
 
@@ -125,54 +120,39 @@ function FullRules() {
         <ul>
           <li>Walk into a glowing crate to pick it up. You carry 3 at a time (the Engineer carries 4). Tap something in your hands to drop it.</li>
           <li>To load, step onto the gold circle marked <b>LOAD HERE</b> at the Kohinoor's gangway. Everything you carry goes into the hold by itself, and a message confirms it. Near the dock, the <b>Load</b> button walks you there.</li>
-          <li>Any crate counts. The Kohinoor needs <b>8 crates for each player</b>, and at least 20 (quick game: 6 per player, at least 12). The bar at the top shows how many are aboard.</li>
+          <li>Any crate counts. The Kohinoor needs <b>7 crates for each player</b>, and at least 20 (quick game: 5 per player, at least 12). The bar at the top shows how many are aboard.</li>
           <li>The hold never fills up. Once the Kohinoor has enough crates, each extra one you load still pays you <b>2 pearls</b>.</li>
           <li>About 10 crates wash up each tide in three waves: when the tide turns, a third of the way through, and two thirds of the way through. The game starts with two waves already out. The tide card counts down to the next wave.</li>
-          <li>Every wave also puts <b>1 crate with your name</b> near you. Only you can pick it up. It usually holds something <b>another player's order</b> needs, so it's good to trade. Gold pointers at the edge of the screen lead to the nearest crates.</li>
+          <li>Every wave also puts <b>1 crate with your name</b> near you. Only you can pick it up, so the bots can't take everything. Gold pointers at the edge of the screen lead to the nearest crates.</li>
           <li>Seven buildings have a glowing doorstep: the Hospital (by the gardens), the Palace, the Grand Hotel, the Lighthouse, the Royal Stables, the Shipwreck and the Pearl Market Shop. Tap <b>Enter</b> at the door to go in and pick up what's inside, and <b>Go outside</b> to leave. They restock every tide. When the sea reaches a door, that building floods and closes for good. Bots never go inside.</li>
           <li>Bots carry at most 2 crates, move a little slower than people, and leave alone crates that you're close to.</li>
         </ul>
       </section>
       <section>
-        <h4>5. Your secret order</h4>
-        <ul>
-          <li>A passenger gives you a private order such as "2 medicine + 1 tools". It shows above your hands, and only you can see it.</li>
-          <li>Crates <b>you</b> load count toward it. Fill it to earn <b>6 pearls</b>. An unfinished order carries over; once it's filled you get a new one at the next tide.</li>
-        </ul>
-      </section>
-      <section>
-        <h4>6. Trading</h4>
-        <ul>
-          <li>Tap <b>Trade</b> (bottom of the screen) at any time, from anywhere, and pick a player. Offer crates or pearls you have in return for crates or pearls they have. If they accept, the swap happens at once.</li>
-          <li>The trade list marks who is carrying what your order needs. Bots trade too, and will send you offers.</li>
-        </ul>
-      </section>
-      <section>
-        <h4>7. Pearls, diamonds and your fortune</h4>
+        <h4>5. Pearls, diamonds and your fortune</h4>
         <ul>
           <li>Your fortune is your pearls plus <b>3 for every diamond</b> you loaded (or carried onto the pier). It only counts if the Kohinoor makes it and you're aboard.</li>
-          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves, some crates, filled orders (+6), and extra crates you load once the Kohinoor has enough (+2 each).</li>
-          <li>The Pearl Market sells a supply crate for 3 pearls (3 crates a tide). The merchant sometimes says no; just ask again.</li>
+          <li>Pearls come from piles on beaches and gardens, diving at the buoys in Turquoise Coves and some crates, plus extra crates you load once the Kohinoor has enough (+2 each).</li>
           <li>Two diamonds turn up each tide. Three more lie in the sealed Sapphire Caves: carry the Antique Compass from the palace to the cave door to open it.</li>
           <li>Light the lighthouse lamp (once a tide) to show every crate on the map for 45 seconds and reveal a hidden stepping-stone path.</li>
         </ul>
       </section>
       <section>
-        <h4>8. The cutlass</h4>
+        <h4>6. The cutlass</h4>
         <p>About one crate a tide holds a cutlass. While you hold it, a red <b>Attack</b> button stays on screen and a red arrow points to the nearest player. Walk right up to them and tap Attack: they're knocked out for 15 seconds and drop everything they carry. The cutlass breaks after one hit, and a player who was just knocked out can't be hit again for 10 seconds after they get up.</p>
       </section>
       <section>
-        <h4>9. Sailing</h4>
+        <h4>7. Sailing</h4>
         <p>Be on the wooden pier when the Kohinoor leaves. Anyone off the pier is left behind and their fortune is lost. The Kohinoor won't wait.</p>
       </section>
       <section>
-        <h4>10. Characters</h4>
+        <h4>8. Characters</h4>
         <ul>
           {ROLES.map((r) => <li key={r}><b>{ROLE_INFO[r].name}:</b> {ROLE_INFO[r].power}</li>)}
         </ul>
       </section>
       <section>
-        <h4>11. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
+        <h4>9. The secret Wrecker (5 or more players, or switched on in the lobby)</h4>
         <ul>
           <li>One player (two with 7 or more) is secretly a Wrecker. Wreckers win if the Kohinoor sinks.</li>
           <li>Only the Wrecker sees a secret <b>Sink a crate</b> button, on the LOAD HERE circle by the Kohinoor. Each tap throws one crate overboard (the bar drops by 1) with a splash, every 45 seconds at most. Watch who's standing at the Kohinoor when you hear it.</li>

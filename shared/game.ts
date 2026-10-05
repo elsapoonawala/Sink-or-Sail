@@ -23,8 +23,8 @@ export const MAX_PLAYERS = 8;
  *  more in bigger games, so a few busy bots can't do it without the people. */
 export const GOAL = 20;
 export const QUICK_GOAL = 12;
-export const GOAL_PER_PLAYER = 8;
-export const QUICK_GOAL_PER_PLAYER = 6;
+export const GOAL_PER_PLAYER = 7;
+export const QUICK_GOAL_PER_PLAYER = 5;
 /** The hold no longer fills up; this is only a guide for bots and the ferry picture. */
 export const HOLD_SLOTS = 999;
 export const QUICK_HOLD_SLOTS = 999;
@@ -35,10 +35,6 @@ export const WALK_SPEED = 150;
 export const RIDE_SPEED = 265;
 export const CARTO_SPEED = 330;
 export const PICKUP_R = 30;
-/** An unanswered trade offer lapses after this long. */
-export const OFFER_MS = 20_000;
-export const TRADE_R = 110;
-export const BARTER_COST = 3;
 export const DUMP_COOLDOWN = 45_000;
 export const SAIL_COUNTDOWN = 15_000;
 export const SAIL_MS = 7_000;
@@ -66,7 +62,7 @@ export const ROLE_INFO: Record<Role, { name: string; power: string; short: strin
   engineer: { name: "The Engineer", short: "Strong back", power: "Carries 4 crates instead of 3.", wear: "Brass goggles, oxblood waistcoat", mounted: false },
   physician: { name: "The Physician", short: "Keen eye", power: "Sees every medicine crate on the map.", wear: "Tweed frock coat, leather bag", mounted: false },
   cartographer: { name: "The Cartographer", short: "Fastest rider", power: "Starts on horseback and rides fastest of all.", wear: "Velvet riding coat, map case", mounted: true },
-  jeweler: { name: "The Jeweler", short: "Silver tongue", power: "The merchant and bots always accept your deals.", wear: "Silk cravat, loupe, garnet brooch", mounted: false },
+  jeweler: { name: "The Jeweler", short: "Silver tongue", power: "Sees every diamond on the map.", wear: "Silk cravat, loupe, garnet brooch", mounted: false },
   duchess: { name: "The Duchess", short: "Hidden riches", power: "Starts on horseback. Every crate you open holds a bonus pearl.", wear: "Emerald velvet, pearl tiara", mounted: true },
 };
 
@@ -101,17 +97,6 @@ export interface HoldItem extends Item {
   owner: string;
 }
 
-/** A passenger's private request: load these yourself this tide for a pearl reward. */
-export interface Order {
-  want: Partial<Record<Supply, number>>;
-  got: Partial<Record<Supply, number>>;
-  reward: number;
-  done: boolean;
-  tide: number;
-}
-
-export const ORDER_REWARD = 6;
-
 export interface Player {
   id: string;
   name: string;
@@ -136,24 +121,11 @@ export interface Player {
   lastMoveAt: number;
   accused: boolean;
   lastDump: number;
-  lastBarter: number;
   /** Diamonds this player loaded aboard. */
   loadedDiamonds: number;
   /** Knocked out by a cutlass until then, and safe from another strike until guardUntil. */
   downUntil: number;
   guardUntil: number;
-  order: Order | null;
-}
-
-export interface Offer {
-  id: string;
-  from: string;
-  to: string;
-  give: { itemIds: string[]; pearls: number };
-  want: { kinds: Partial<Record<Kind, number>>; pearls: number };
-  giveItems: Item[];
-  status: "open" | "accepted" | "declined" | "cancelled" | "failed";
-  at: number;
 }
 
 export interface Vote {
@@ -212,7 +184,6 @@ export interface GameState {
   crates: Crate[];
   piles: PearlPile[];
   hold: HoldItem[];
-  offers: Offer[];
   vote: Vote | null;
   lampUntil: number;
   lampTide: number;
@@ -366,7 +337,6 @@ export function createGame(code: string, hostId: string): GameState {
     crates: [],
     piles: [],
     hold: [],
-    offers: [],
     vote: null,
     lampUntil: 0,
     lampTide: 0,
@@ -401,7 +371,7 @@ function blankPlayer(id: string, name: string, seat: number, bot: boolean): Play
   return {
     id, name, seat, bot, choice: null, role: null, wrecker: false, connected: true,
     x: 0, y: 0, dir: Math.PI / 2, moving: false, mounted: false, carry: [], pearls: 0,
-    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0, order: null,
+    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
   };
 }
 
@@ -439,7 +409,6 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   s.crates = [];
   s.piles = [];
   s.hold = [];
-  s.offers = [];
   s.vote = null;
   s.lampUntil = 0;
   s.lampTide = 0;
@@ -468,14 +437,13 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
     Object.assign(p, {
       wrecker: wreckers.has(p.id), x: spot.x, y: spot.y, dir: -Math.PI / 2, moving: false,
       mounted: ROLE_INFO[p.role!].mounted, carry: [], pearls: 2, ready: false, brig: false, busyUntil: 0,
-      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, lastBarter: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0, order: null,
+      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
     } satisfies Partial<Player>);
   });
 
   // Treasures that wait all game: the compass in the palace and a hoard in the sealed cave.
   for (let i = 0; i < 3; i++) s.crates.push({ id: nid(s, "c"), kind: "diamond", x: CAVE.x - 36 + i * 36, y: CAVE.y - 10 + (i % 2) * 14, zone: "cave" });
   s.piles.push({ id: nid(s, "g"), x: CAVE.x, y: CAVE.y + 22, n: 6 });
-  dealOrders(s, rng);
   // The island starts well stocked: the first two waves are already waiting.
   spawnTide(s, rng, now, 0);
   spawnTide(s, rng, now, 1);
@@ -484,20 +452,6 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   return null;
 }
 
-/** At each tide, everyone whose order is filled (or who has none) gets a new private one;
- *  an unfinished order carries over. Neighbours get different main kinds, so what one person
- *  needs is usually in someone else's hands. */
-function dealOrders(s: GameState, rng: Rng) {
-  const offset = Math.floor(rng() * 3);
-  s.players.forEach((p, i) => {
-    if (p.order && !p.order.done) return;
-    const main = SUPPLIES[(i + offset) % 3];
-    const others = SUPPLIES.filter((k) => k !== main);
-    const side = others[Math.floor(rng() * 2)];
-    p.order = { want: { [main]: 2, [side]: 1 }, got: {}, reward: ORDER_REWARD, done: false, tide: s.tide };
-  });
-  s.version++;
-}
 
 /** What turns up in each place, by tide: about eight supplies, two diamonds and the odd
  *  cutlass a tide. Low places get theirs early, so they're worth raiding before they drown. */
@@ -525,6 +479,7 @@ export function nextWaveAt(s: { tide: number; totalTides: number; tideStartedAt:
   return s.tide < s.totalTides ? s.tideStartedAt + s.tideMs : null;
 }
 
+
 function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
   const g = { ...ground(s, now), level: seaLevel(s.tide, s.tideStartedAt - 1e9, s.totalTides, now) };
   s.spawnedPart = part;
@@ -551,11 +506,10 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
     if (spot) s.crates.push({ id: nid(s, "c"), kind: SUPPLIES[Math.floor(rng() * 3)], x: spot.x, y: spot.y, zone: z });
   }
   // And every person gets a crate of their own nearby, so the bots can't take everything.
-  // It's something another player's order needs, so it's worth trading.
   for (const p of s.players) {
     if (p.bot || !p.connected || p.brig || s.phase !== "play") continue;
     if (s.crates.filter((c) => c.owner === p.id).length >= 3) continue;
-    const kind = tradeBait(s, p, rng);
+    const kind = SUPPLIES[Math.floor(rng() * 3)];
     const base = outdoorPos(p.x, p.y);
     const spot = spotNear(base.x, base.y, g, rng);
     if (spot) s.crates.push({ id: nid(s, "c"), kind, x: spot.x, y: spot.y, zone: zoneAt(spot.x, spot.y) ?? "dropped", owner: p.id });
@@ -577,15 +531,6 @@ function spawnTide(s: GameState, rng: Rng, now: number, part: number) {
     log(s, `Fresh crates washed up at ${names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0]}.`, "info");
   }
   s.version++;
-}
-
-/** What a person's own crate holds: a supply someone else's order wants and theirs doesn't. */
-function tradeBait(s: GameState, p: Player, rng: Rng): Supply {
-  const wants = (q: Player) => (q.order && !q.order.done ? SUPPLIES.filter((k) => (q.order!.want[k] ?? 0) > (q.order!.got[k] ?? 0)) : []);
-  const mine = wants(p);
-  const theirs = s.players.filter((q) => q.id !== p.id).flatMap(wants).filter((k) => !mine.includes(k));
-  const pool = theirs.length ? theirs : SUPPLIES.filter((k) => !mine.includes(k));
-  return (pool.length ? pool : SUPPLIES)[Math.floor(rng() * (pool.length || 3))];
 }
 
 /** What each building holds: one thing, restocked every other tide while it stays dry. */
@@ -688,7 +633,6 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
       log(s, `Tide ${s.tide} of ${s.totalTides} is rising${drowned.length ? `: ${drowned.map((z) => ZONES[z].name).join(" and ")} ${drowned.length > 1 ? "are" : "is"} going under` : ""}.`, "flood");
       if (s.tide === s.totalTides) log(s, "Last tide. The Kohinoor leaves when it runs out. Be on the pier.", "alert");
       spawnTide(s, rng, now, 0);
-      dealOrders(s, rng);
     }
     const wave = Math.min(WAVES - 1, Math.floor(((now - s.tideStartedAt) * WAVES) / s.tideMs));
     while (s.spawnedPart < wave) spawnTide(s, rng, now, s.spawnedPart + 1);
@@ -741,14 +685,6 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
         log(s, `${p.name} turned the compass in the cave door. The Sapphire Caves are open.`, "info");
       }
     }
-    // Offers nobody answers fade away after a while.
-    for (const o of s.offers) {
-      if (o.status === "open" && now - o.at > OFFER_MS) {
-        o.status = "cancelled";
-        s.version++;
-      }
-    }
-    if (s.offers.length > 40) s.offers = s.offers.filter((o) => o.status === "open" || now - o.at < 60_000);
     if (s.vote && s.vote.outcome === "open") settleVote(s, now, false);
     // Enough people ready on the pier: start the countdown.
     const ready = s.players.filter((p) => p.ready || p.brig).length;
@@ -817,17 +753,6 @@ function loadAll(s: GameState, p: Player) {
     if (item.kind === "diamond") p.loadedDiamonds++;
     if (isSpare) spare++;
     loaded.push(KIND_INFO[item.kind].name.toLowerCase());
-    const o = p.order;
-    const k = item.kind as Supply;
-    if (o && !o.done && (o.want[k] ?? 0) > (o.got[k] ?? 0)) {
-      o.got[k] = (o.got[k] ?? 0) + 1;
-      if (SUPPLIES.every((q) => (o.got[q] ?? 0) >= (o.want[q] ?? 0))) {
-        o.done = true;
-        p.pearls += o.reward;
-        fx(s, "barter", GANGWAY.x, GANGWAY.y, p.id);
-        log(s, `${p.name} filled a passenger's order: +${o.reward} pearls.`, "trade");
-      }
-    }
   }
   if (loaded.length) {
     p.pearls += spare * SPARE_PEARLS;
@@ -845,7 +770,6 @@ function sail(s: GameState, now: number, early: boolean) {
   s.phase = "sailing";
   s.phaseEndsAt = now + SAIL_MS;
   s.sailAt = null;
-  for (const o of s.offers) if (o.status === "open") o.status = "cancelled";
   const loaded = s.hold.length;
   const goal = goalOf(s);
   const success = loaded >= goal;
@@ -931,28 +855,6 @@ export function dive(s: GameState, pid: string, now: number): string | null {
   s.diveReady[i] = now + 20_000;
   fx(s, "dive", DIVE_SPOTS[i].x, DIVE_SPOTS[i].y, p.id);
   log(s, `${p.name} dived and came up with ${n} pearls.`, "info");
-  return null;
-}
-
-export function barter(s: GameState, pid: string, kind: Supply, now: number, rng: Rng): string | null {
-  const p = player(s, pid);
-  if (!p || s.phase !== "play") return null;
-  if (!nearStall(p)) return "Walk up to the Pearl Market stall to barter.";
-  if (!SUPPLIES.includes(kind)) return "The merchant only sells supplies.";
-  if (s.marketStock <= 0) return "The merchant is sold out until the next tide.";
-  if (p.pearls < BARTER_COST) return `The merchant wants ${BARTER_COST} pearls.`;
-  if (p.carry.length >= carryLimit(p)) return "Your hands are full. Load the Kohinoor first.";
-  if (now - p.lastBarter < 5000) return "The merchant is still counting your last pearls.";
-  p.lastBarter = now;
-  if (p.role !== "jeweler" && rng() < 0.3) {
-    s.version++;
-    return "The merchant shakes his head at your price. Try again in a moment.";
-  }
-  p.pearls -= BARTER_COST;
-  s.marketStock--;
-  p.carry.push({ id: nid(s, "c"), kind });
-  fx(s, "barter", MARKET_STALL.x, MARKET_STALL.y, p.id);
-  log(s, `${p.name} bartered pearls for ${KIND_INFO[kind].name.toLowerCase()}.`, "trade");
   return null;
 }
 
@@ -1082,84 +984,6 @@ function settleVote(s: GameState, now: number, force: boolean) {
   s.version++;
 }
 
-// ---------- trading face to face ----------
-
-export const MAX_OPEN_OFFERS = 2;
-
-export function makeOffer(s: GameState, from: string, to: string, give: Offer["give"], want: Offer["want"], now: number): string | null {
-  const a = player(s, from);
-  const b = player(s, to);
-  if (!a || !b || from === to || s.phase !== "play") return "You can't trade with them.";
-  if (a.brig || b.brig) return "No trading through the brig bars.";
-  const ids = Array.isArray(give?.itemIds) ? [...new Set(give.itemIds.map(String))] : [];
-  const items = ids.map((id) => a.carry.find((c) => c.id === id));
-  if (items.some((c) => !c)) return "You're not carrying all of that.";
-  const pearls = Math.max(0, Math.floor(Number(give?.pearls) || 0));
-  if (pearls > a.pearls) return "You don't have that many pearls.";
-  const kinds: Partial<Record<Kind, number>> = {};
-  for (const k of KINDS) {
-    const n = Math.max(0, Math.min(4, Math.floor(Number(want?.kinds?.[k]) || 0)));
-    if (n) kinds[k] = n;
-  }
-  const wantPearls = Math.max(0, Math.min(50, Math.floor(Number(want?.pearls) || 0)));
-  if (!items.length && !pearls && !Object.keys(kinds).length && !wantPearls) return "Add something to the offer.";
-  if (s.offers.filter((o) => o.from === from && o.status === "open").length >= MAX_OPEN_OFFERS) return "You already have offers waiting. Cancel one first.";
-  s.offers.push({ id: nid(s, "o"), from, to, give: { itemIds: ids, pearls }, want: { kinds, pearls: wantPearls }, giveItems: items as Item[], status: "open", at: now });
-  if (s.offers.length > 30) s.offers.splice(0, s.offers.length - 30);
-  s.version++;
-  return null;
-}
-
-export function cancelOffer(s: GameState, pid: string, offerId: string): string | null {
-  const o = s.offers.find((x) => x.id === offerId);
-  if (!o || o.from !== pid || o.status !== "open") return null;
-  o.status = "cancelled";
-  s.version++;
-  return null;
-}
-
-export function respondOffer(s: GameState, pid: string, offerId: string, accept: boolean): string | null {
-  const o = s.offers.find((x) => x.id === offerId);
-  if (!o || o.to !== pid || o.status !== "open") return "That offer is no longer open.";
-  if (!accept) {
-    o.status = "declined";
-    s.version++;
-    return null;
-  }
-  const a = player(s, o.from)!;
-  const b = player(s, o.to)!;
-  const giveItems = o.give.itemIds.map((id) => a.carry.find((c) => c.id === id));
-  if (giveItems.some((c) => !c) || a.pearls < o.give.pearls) {
-    o.status = "failed";
-    s.version++;
-    return `${a.name} no longer has what they offered.`;
-  }
-  // Pick the requested items from what the responder is carrying.
-  const takeFromB: Item[] = [];
-  for (const [k, n] of Object.entries(o.want.kinds) as [Kind, number][]) {
-    const have = b.carry.filter((c) => c.kind === k && !takeFromB.includes(c));
-    if (have.length < n) return `You need ${n} ${KIND_INFO[k].name.toLowerCase()} to accept.`;
-    takeFromB.push(...have.slice(0, n));
-  }
-  if (b.pearls < o.want.pearls) return `You need ${o.want.pearls} pearls to accept.`;
-  if (b.carry.length - takeFromB.length + giveItems.length > carryLimit(b)) return "Your hands would be too full. Load or drop something first.";
-  if (a.carry.length - giveItems.length + takeFromB.length > carryLimit(a)) return `${a.name}'s hands would be too full.`;
-  a.carry = a.carry.filter((c) => !o.give.itemIds.includes(c.id)).concat(takeFromB);
-  b.carry = b.carry.filter((c) => !takeFromB.includes(c)).concat(giveItems as Item[]);
-  a.pearls += o.want.pearls - o.give.pearls;
-  b.pearls += o.give.pearls - o.want.pearls;
-  o.status = "accepted";
-  // Other offers that relied on the same items can no longer go through.
-  for (const x of s.offers) {
-    if (x.status !== "open") continue;
-    const p = player(s, x.from)!;
-    if (x.give.itemIds.some((id) => !p.carry.some((c) => c.id === id))) x.status = "failed";
-  }
-  fx(s, "trade", (a.x + b.x) / 2, (a.y + b.y) / 2, a.id);
-  log(s, `${a.name} and ${b.name} made a trade.`, "trade");
-  return null;
-}
-
 // ---------- what each player sees ----------
 
 export interface PlayerView {
@@ -1183,8 +1007,6 @@ export interface PlayerView {
   downUntil: number;
   guardUntil: number;
   accused: boolean;
-  /** Your own order only (everyone's after the game). */
-  order?: Order | null;
   /** Only shown to fellow Wreckers, to someone caught in a vote, and after the game. */
   wrecker?: boolean;
   lastDump?: number;
@@ -1213,7 +1035,6 @@ export interface GameView {
   /** Crates aboard, and how many the crossing needs. */
   goal: number;
   loaded: number;
-  offers: Offer[];
   vote: Vote | null;
   lampUntil: number;
   lampTide: number;
@@ -1256,7 +1077,6 @@ export function viewFor(s: GameState, pid: string): GameView {
         carry: p.carry, pearls: p.pearls, ready: p.ready, brig: p.brig, busyUntil: p.busyUntil, downUntil: p.downUntil, guardUntil: p.guardUntil, accused: p.accused,
         ...(showWrecker ? { wrecker: p.wrecker } : {}),
         ...(p.id === pid && p.wrecker ? { lastDump: p.lastDump } : {}),
-        ...(p.id === pid || over ? { order: p.order } : {}),
       };
     }),
     crates: s.crates,
@@ -1266,7 +1086,6 @@ export function viewFor(s: GameState, pid: string): GameView {
     capacity: capacityOf(s),
     goal: goalOf(s),
     loaded: s.hold.length,
-    offers: s.offers.filter((o) => o.from === pid || o.to === pid),
     vote: s.vote,
     lampUntil: s.lampUntil,
     lampTide: s.lampTide,

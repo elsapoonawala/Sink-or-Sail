@@ -810,7 +810,7 @@ export function MiniMap({ v, size = 150 }: { v: GameView; size?: number }) {
       }
       for (const crate of v.crates) {
         const cr = { ...crate, ...outdoorPos(crate.x, crate.y) };
-        const show = lamp || spotted.ids.has(cr.id) || (me?.role === "physician" && cr.kind === "medicine");
+        const show = lamp || spotted.ids.has(cr.id) || (me?.role === "physician" && cr.kind === "medicine") || (me?.role === "jeweler" && cr.kind === "diamond");
         if (!show) continue;
         ctx.fillStyle = cr.kind === "medicine" ? "#ff8f9c" : cr.kind === "diamond" || cr.kind === "compass" ? "#bfe8f5" : cr.kind === "cutlass" ? "#ff6b5e" : "#f2d14b";
         ctx.strokeStyle = "rgba(20,20,20,.6)";

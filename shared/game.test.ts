@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  type GameState, addPlayer, accuse, castVote, createGame, makeOffer, moveTo, player, respondOffer,
+  type GameState, addPlayer, accuse, castVote, createGame, moveTo, player,
   setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
@@ -45,7 +45,7 @@ describe("a game", () => {
     expect(s.phase).toBe("play");
     expect(s.players.every((p) => p.role)).toBe(true);
     expect(s.crates.length).toBeGreaterThan(3);
-    expect(goalOf(s)).toBe(24);
+    expect(goalOf(s)).toBe(21);
     expect(goalOf(game(2))).toBe(GOAL);
   });
 
@@ -100,19 +100,6 @@ describe("a game", () => {
     tick(s, 1_001_000 + SAIL_COUNTDOWN + 1, seeded());
     expect(s.phase).toBe("sailing");
     expect(s.result!.early).toBe(true);
-  });
-
-  it("swaps carried crates face to face", () => {
-    const s = game(2);
-    const [a, b] = s.players;
-    b.x = a.x + 20;
-    b.y = a.y;
-    a.carry = [{ id: "x1", kind: "fuel" }];
-    b.carry = [{ id: "x2", kind: "tools" }];
-    expect(makeOffer(s, a.id, b.id, { itemIds: ["x1"], pearls: 0 }, { kinds: { tools: 1 }, pearls: 0 }, 1_000_100)).toBeNull();
-    expect(respondOffer(s, b.id, s.offers[0].id, true)).toBeNull();
-    expect(a.carry[0].kind).toBe("tools");
-    expect(b.carry[0].kind).toBe("fuel");
   });
 
   it("hides who the Wrecker is, and a vote can lock them in the brig", () => {
@@ -174,33 +161,11 @@ describe("crates, pearls and the cutlass", () => {
     expect(b.downUntil).toBe(0);
   });
 
-  it("deals everyone a private order and pays pearls when they load it themselves", () => {
-    const s = game(2);
-    const [a, b] = s.players;
-    expect(a.order).not.toBeNull();
-    expect(viewFor(s, b.id).players.find((p) => p.id === a.id)!.order).toBeUndefined();
-    expect(viewFor(s, a.id).players.find((p) => p.id === a.id)!.order).toEqual(a.order);
-    a.carry = (Object.entries(a.order!.want) as [string, number][]).flatMap(([k, n]) => Array.from({ length: n }, (_, i) => ({ id: `${k}${i}`, kind: k as "fuel" })));
-    const before = a.pearls;
-    a.x = GANGWAY.x;
-    a.y = GANGWAY.y;
-    tick(s, 1_000_100, seeded());
-    expect(a.order!.done).toBe(true);
-    expect(a.pearls).toBe(before + a.order!.reward);
-    const bOrder = b.order;
-    tick(s, s.tideStartedAt + s.tideMs + 1, seeded());
-    expect(a.order!.done).toBe(false);
-    expect(a.order!.tide).toBe(2);
-    expect(b.order).toBe(bOrder); // unfinished orders carry over
-  });
-
-  it("puts crates with your name near you that only you can pick up, holding what others need", () => {
+  it("puts crates with your name near you that only you can pick up", () => {
     const s = game(2);
     const [person, bot] = s.players;
     const mine = s.crates.filter((c) => c.owner === person.id);
     expect(mine.length).toBeGreaterThanOrEqual(2);
-    const myOrder = person.order!.want;
-    for (const c of mine) expect(myOrder[c.kind as keyof typeof myOrder] ?? 0).toBe(0);
     expect(s.crates.some((c) => c.owner === bot.id)).toBe(false);
     bot.x = mine[0].x;
     bot.y = mine[0].y;
@@ -208,15 +173,11 @@ describe("crates, pearls and the cutlass", () => {
     expect(bot.carry).toHaveLength(0);
   });
 
-  it("lets you trade with someone across the island", () => {
+  it("has no trading left: no offers or orders in what players see", () => {
     const s = game(2);
-    const [a, b] = s.players;
-    b.x = a.x + 900;
-    a.carry = [{ id: "x1", kind: "fuel" }];
-    b.carry = [{ id: "x2", kind: "tools" }];
-    expect(makeOffer(s, a.id, b.id, { itemIds: ["x1"], pearls: 0 }, { kinds: { tools: 1 }, pearls: 0 }, 1_000_100)).toBeNull();
-    expect(respondOffer(s, b.id, s.offers[0].id, true)).toBeNull();
-    expect(a.carry[0].kind).toBe("tools");
+    const v = viewFor(s, s.players[0].id) as unknown as Record<string, unknown>;
+    expect(v.offers).toBeUndefined();
+    expect((v.players as Record<string, unknown>[])[0].order).toBeUndefined();
   });
 
   it("never loads the cutlass into the hold", () => {
@@ -231,14 +192,14 @@ describe("crates, pearls and the cutlass", () => {
 });
 
 describe("the goal", () => {
-  it("needs 8 crates a player (at least 20), any kind, and sinks if she's short", () => {
+  it("needs 7 crates a player (at least 20), any kind, and sinks if she's short", () => {
     const s = game(4);
-    expect(goalOf(s)).toBe(32);
-    for (let i = 0; i < 31; i++) s.hold.push({ id: `h${i}`, kind: i % 2 ? "diamond" : "tools", owner: "p0" });
+    expect(goalOf(s)).toBe(28);
+    for (let i = 0; i < 27; i++) s.hold.push({ id: `h${i}`, kind: i % 2 ? "diamond" : "tools", owner: "p0" });
     tick(s, s.endsAt + 1, seeded());
     expect(s.result?.success).toBe(false);
     const t = game(4);
-    for (let i = 0; i < 32; i++) t.hold.push({ id: `h${i}`, kind: "medicine", owner: "p0" });
+    for (let i = 0; i < 28; i++) t.hold.push({ id: `h${i}`, kind: "medicine", owner: "p0" });
     tick(t, t.endsAt + 1, seeded());
     expect(t.result?.success).toBe(true);
   });

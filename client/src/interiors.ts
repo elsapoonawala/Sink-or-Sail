@@ -481,7 +481,7 @@ const FURNISH: Record<BuildingId, (ctx: Ctx, b: Building, t: number, lampLit: bo
     ctx.font = "700 10px Georgia, serif";
     ctx.textAlign = "center";
     ctx.fillStyle = "#f3ece0";
-    ctx.fillText("BARTER HERE", s.x, s.y - 8);
+    ctx.fillText("PEARL MARKET", s.x, s.y - 8);
     // a rug and crates of goods
     ctx.fillStyle = "rgba(184,67,79,.45)";
     rr(ctx, r.x1 + 180, r.y1 + 250, r.x2 - r.x1 - 360, 110, 14);

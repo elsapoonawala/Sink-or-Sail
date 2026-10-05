@@ -1,11 +1,8 @@
 // Messages exchanged between the browser and the game server.
 
 export const SIGNALS = [
-  { key: "fuel", label: "Need fuel" },
-  { key: "medicine", label: "Need medicine" },
-  { key: "tools", label: "Need tools" },
+  { key: "crates", label: "Crates here!" },
   { key: "come", label: "Over here!" },
-  { key: "trade", label: "Trade?" },
   { key: "pier", label: "To the pier!" },
   { key: "distrust", label: "Watch the gangway" },
   { key: "yes", label: "Yes" },
@@ -51,7 +48,6 @@ export type ClientAction =
   | { type: "drop"; itemId: string }
   | { type: "mount" }
   | { type: "dive" }
-  | { type: "barter"; kind: string }
   | { type: "lamp" }
   | { type: "dump" }
   | { type: "ready"; ready?: boolean }
@@ -60,9 +56,6 @@ export type ClientAction =
   | { type: "leave" }
   | { type: "accuse"; target: string }
   | { type: "vote"; yes: boolean }
-  | { type: "offer"; to: string; give: { itemIds: string[]; pearls: number }; want: { kinds: Record<string, number>; pearls: number } }
-  | { type: "respond"; offerId: string; accept: boolean }
-  | { type: "cancel"; offerId: string };
 
 export interface JoinResult {
   code?: string;
