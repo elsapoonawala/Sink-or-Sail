@@ -36,7 +36,7 @@ function tone(freq: number, dur: number, type: OscillatorType = "sine", vol = 0.
   o.stop(t + dur + 0.05);
 }
 
-function noise(dur: number, vol: number, from: number, to: number) {
+function noise(dur: number, vol: number, from: number, to: number, kind: BiquadFilterType = "lowpass") {
   const c = ac();
   if (!c) return;
   const len = Math.floor(c.sampleRate * dur);
@@ -46,7 +46,7 @@ function noise(dur: number, vol: number, from: number, to: number) {
   const src = c.createBufferSource();
   src.buffer = buf;
   const f = c.createBiquadFilter();
-  f.type = "lowpass";
+  f.type = kind;
   f.frequency.setValueAtTime(from, c.currentTime);
   f.frequency.exponentialRampToValueAtTime(to, c.currentTime + dur);
   const g = c.createGain();
@@ -90,6 +90,50 @@ export const sfx = {
   win: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.5, "triangle", 0.07, i * 0.14)),
   lose: () => [392, 349, 311, 262].forEach((f, i) => tone(f, 0.6, "triangle", 0.06, i * 0.2)),
   tick: () => tone(1200, 0.03, "square", 0.02),
+  /** A different sound for each thing you pick up. */
+  pickup: (item?: string) => {
+    switch (item) {
+      case "fuel": // a heavy drum: low knock and a slosh
+        tone(150, 0.22, "sine", 0.14);
+        tone(95, 0.3, "triangle", 0.08, 0.03);
+        noise(0.35, 0.05, 700, 180);
+        break;
+      case "medicine": // glass bottles clinking
+        tone(2093, 0.12, "sine", 0.05);
+        tone(2637, 0.16, "sine", 0.045, 0.07);
+        tone(2349, 0.14, "sine", 0.035, 0.15);
+        break;
+      case "tools": // a metal clank
+        tone(523, 0.09, "square", 0.035);
+        tone(784, 0.14, "triangle", 0.06, 0.02);
+        tone(1175, 0.18, "triangle", 0.03, 0.05);
+        break;
+      case "diamond": // a bright sparkle
+        [1568, 2093, 2637, 3136, 4186].forEach((f, i) => tone(f, 0.35, "sine", 0.045, i * 0.06));
+        break;
+      case "cutlass": // a blade drawn from its sheath
+        noise(0.4, 0.08, 1200, 9000, "highpass");
+        tone(1760, 0.35, "sawtooth", 0.018, 0.12);
+        tone(2217, 0.3, "triangle", 0.03, 0.14);
+        break;
+      case "compass": // a ticking dial and a soft chime
+        tone(1400, 0.03, "square", 0.03);
+        tone(1400, 0.03, "square", 0.03, 0.09);
+        tone(880, 0.5, "sine", 0.06, 0.18);
+        tone(1320, 0.5, "sine", 0.04, 0.18);
+        break;
+      default: // pearls
+        tone(1318, 0.25, "sine", 0.06);
+        tone(1760, 0.3, "sine", 0.05, 0.07);
+    }
+  },
+  /** Your crates going into the hold: a thump and a rising "done". */
+  loaded: () => {
+    tone(110, 0.25, "sine", 0.14);
+    noise(0.1, 0.05, 900, 200);
+    tone(659, 0.18, "triangle", 0.06, 0.15);
+    tone(988, 0.3, "triangle", 0.06, 0.27);
+  },
 };
 
 export function startSea() {

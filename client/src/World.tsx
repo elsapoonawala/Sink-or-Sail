@@ -373,8 +373,8 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
           if (ring) particles.push({ x: f.x, y: f.y, vx: 0, vy: 0, life: 0, max: 1.1, color, size: 6, ring: true });
         };
         switch (f.kind) {
-          case "pickup": burst("#fff3b0", 10); if (f.by === v.you) sfx.pearl(); break;
-          case "load": burst("#f2d14b", 16, true); if (near) sfx.thud(); break;
+          case "pickup": burst("#fff3b0", 10); if (f.by === v.you) sfx.pickup(f.item); break;
+          case "load": burst("#f2d14b", 16, true); if (f.by === v.you) sfx.loaded(); else if (near) sfx.thud(); break;
           case "splash": burst("#d8f6f2", 22, true); if (near) sfx.flood(); break;
           case "dive": burst("#bff2ea", 14, true); if (near) sfx.deal(); break;
           case "lamp": burst("#fff3b0", 30, true); sfx.flip(); break;

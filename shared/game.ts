@@ -170,6 +170,8 @@ export interface Fx {
   x: number;
   y: number;
   by?: string;
+  /** What was picked up, so each kind can sound different. */
+  item?: Kind | "pearl";
 }
 
 export interface Result {
@@ -240,8 +242,8 @@ export function log(s: GameState, text: string, kind: LogEntry["kind"] = "info")
   s.version++;
 }
 
-function fx(s: GameState, kind: Fx["kind"], x: number, y: number, by?: string) {
-  s.fx.push({ n: ++s.nextId, kind, x: Math.round(x), y: Math.round(y), by });
+function fx(s: GameState, kind: Fx["kind"], x: number, y: number, by?: string, item?: Kind | "pearl") {
+  s.fx.push({ n: ++s.nextId, kind, x: Math.round(x), y: Math.round(y), by, ...(item ? { item } : {}) });
   if (s.fx.length > 30) s.fx.splice(0, s.fx.length - 30);
   s.version++;
 }
@@ -675,7 +677,7 @@ function collect(s: GameState, p: Player, now: number) {
     if (dist(p.x, p.y, pile.x, pile.y) < PICKUP_R) {
       p.pearls += pile.n;
       pile.n = 0;
-      fx(s, "pickup", pile.x, pile.y, p.id);
+      fx(s, "pickup", pile.x, pile.y, p.id, "pearl");
     }
   }
   s.piles = s.piles.filter((x) => x.n > 0);
@@ -687,7 +689,7 @@ function collect(s: GameState, p: Player, now: number) {
   p.carry.push({ id: c.id, kind: c.kind });
   if (p.role === "duchess" && c.zone !== "dropped") p.pearls++;
   if (c.bonus) p.pearls += c.bonus;
-  fx(s, "pickup", c.x, c.y, p.id);
+  fx(s, "pickup", c.x, c.y, p.id, c.kind);
   if (c.kind === "cutlass") log(s, `${p.name} picked up a cutlass.`, "alert");
   if (c.kind === "compass") log(s, `${p.name} found the Antique Compass.`, "info");
   if (c.kind === "diamond" && c.zone !== "dropped") log(s, `${p.name} found a diamond at ${c.zone === "cave" ? "the Sapphire Caves" : ZONES[c.zone as ZoneId].name}.`, "info");
