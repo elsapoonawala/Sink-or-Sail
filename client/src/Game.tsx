@@ -62,6 +62,7 @@ function mmss(ms: number) {
 export function Game({ v }: { v: GameView }) {
   const api = useRef<WorldApi | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
+  const [soundIsOn, setSoundIsOn] = useState(soundOn());
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const [intro, setIntro] = useState(true);
   const now = useNow(250);
@@ -209,6 +210,7 @@ export function Game({ v }: { v: GameView }) {
         <div className="hud-icons">
           <button className="icon-btn" onClick={() => api.current?.zoomBy(1 / 1.4)} aria-label="Zoom out" title="Zoom out (or scroll / pinch)"><b className="zoom-glyph">−</b></button>
           <button className="icon-btn" onClick={() => api.current?.zoomBy(1.4)} aria-label="Zoom in" title="Zoom in"><b className="zoom-glyph">+</b></button>
+          <button className="icon-btn" onClick={() => { setSound(!soundIsOn); setSoundIsOn(!soundIsOn); }} aria-label={soundIsOn ? "Mute sound" : "Turn sound on"} title={soundIsOn ? "Mute sound" : "Turn sound on"}><Icon name={soundIsOn ? "sound" : "soundOff"} /></button>
           <button className="icon-btn" onClick={() => setPanel("help")} aria-label="How to play"><Icon name="help" /></button>
           <button className="icon-btn" onClick={() => setPanel("menu")} aria-label="Menu"><Icon name="anchor" /></button>
         </div>

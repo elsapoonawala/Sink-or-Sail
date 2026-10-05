@@ -9,6 +9,11 @@ let enabled = (() => {
 })();
 let sea: { stop: () => void } | null = null;
 
+// Everything plays through one soft chain: low overall volume, a gentle low-pass so nothing
+// is shrill, and a compressor so several sounds at once never get loud.
+let bus: AudioNode | null = null;
+const VOLUME = 0.55;
+
 function ac(): AudioContext | null {
   if (!enabled) return null;
   try {
@@ -20,7 +25,32 @@ function ac(): AudioContext | null {
   }
 }
 
-function tone(freq: number, dur: number, type: OscillatorType = "sine", vol = 0.08, delay = 0) {
+function out(c: AudioContext): AudioNode {
+  if (bus) return bus;
+  const lp = c.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.frequency.value = 3200;
+  lp.Q.value = 0.5;
+  const comp = c.createDynamicsCompressor();
+  comp.threshold.value = -28;
+  comp.ratio.value = 6;
+  const g = c.createGain();
+  g.gain.value = VOLUME;
+  lp.connect(comp).connect(g).connect(c.destination);
+  bus = lp;
+  return bus;
+}
+
+/** The same sound never fires more than once in a short while, so nothing rattles. */
+const lastAt = new Map<string, number>();
+function calm(key: string, gapMs: number) {
+  const now = performance.now();
+  if (now - (lastAt.get(key) ?? -1e9) < gapMs) return false;
+  lastAt.set(key, now);
+  return true;
+}
+
+function tone(freq: number, dur: number, type: OscillatorType = "sine", vol = 0.05, delay = 0) {
   const c = ac();
   if (!c) return;
   const t = c.currentTime + delay;
@@ -29,9 +59,10 @@ function tone(freq: number, dur: number, type: OscillatorType = "sine", vol = 0.
   o.type = type;
   o.frequency.setValueAtTime(freq, t);
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(vol, t + 0.01);
+  // A soft attack instead of a click.
+  g.gain.linearRampToValueAtTime(vol, t + 0.03);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(c.destination);
+  o.connect(g).connect(out(c));
   o.start(t);
   o.stop(t + dur + 0.05);
 }
@@ -53,91 +84,93 @@ function noise(dur: number, vol: number, from: number, to: number, kind: BiquadF
   g.gain.setValueAtTime(0, c.currentTime);
   g.gain.linearRampToValueAtTime(vol, c.currentTime + dur * 0.4);
   g.gain.linearRampToValueAtTime(0, c.currentTime + dur);
-  src.connect(f).connect(g).connect(c.destination);
+  src.connect(f).connect(g).connect(out(c));
   src.start();
 }
 
+/** Soft, rounded sounds: sine and triangle only, nothing above a gentle chime. */
 export const sfx = {
-  click: () => tone(880, 0.06, "triangle", 0.05),
+  click: () => calm("click", 80) && tone(660, 0.08, "sine", 0.03),
   pearl: () => {
-    tone(1318, 0.25, "sine", 0.06);
-    tone(1760, 0.3, "sine", 0.05, 0.07);
+    if (!calm("pearl", 150)) return;
+    tone(988, 0.3, "sine", 0.035);
+    tone(1319, 0.35, "sine", 0.025, 0.08);
   },
-  deal: () => {
-    noise(0.12, 0.05, 4000, 1500);
-  },
+  deal: () => calm("deal", 300) && noise(0.25, 0.025, 1400, 600),
   thud: () => {
-    tone(110, 0.25, "sine", 0.14);
-    noise(0.1, 0.05, 900, 200);
+    if (!calm("thud", 200)) return;
+    tone(110, 0.3, "sine", 0.07);
   },
   flip: () => {
-    tone(660, 0.05, "square", 0.03);
-    tone(990, 0.08, "triangle", 0.04, 0.05);
+    if (!calm("flip", 200)) return;
+    tone(523, 0.25, "sine", 0.03);
+    tone(784, 0.35, "sine", 0.03, 0.08);
   },
-  flood: () => noise(2.2, 0.12, 300, 1600),
+  /** A slow wash of water. */
+  flood: () => calm("flood", 1500) && noise(2.2, 0.05, 250, 900),
+  /** A deep, slow rumble and a swell of water. */
   monster: () => {
-    tone(70, 0.9, "sawtooth", 0.08);
-    tone(55, 1.1, "sawtooth", 0.06, 0.1);
-    noise(0.8, 0.12, 500, 2500);
+    if (!calm("monster", 1500)) return;
+    tone(65, 1.2, "sine", 0.09);
+    tone(82, 1.0, "sine", 0.05, 0.15);
+    noise(1.2, 0.05, 300, 800);
   },
   trade: () => {
-    tone(784, 0.12, "triangle", 0.06);
-    tone(1046, 0.18, "triangle", 0.06, 0.1);
+    if (!calm("trade", 300)) return;
+    tone(659, 0.2, "sine", 0.035);
+    tone(880, 0.25, "sine", 0.03, 0.1);
   },
+  /** Something happened to you: two low, round notes. */
   alert: () => {
-    tone(392, 0.25, "sawtooth", 0.04);
-    tone(370, 0.35, "sawtooth", 0.04, 0.2);
+    if (!calm("alert", 800)) return;
+    tone(330, 0.35, "sine", 0.05);
+    tone(262, 0.45, "sine", 0.045, 0.18);
   },
   horn: () => {
-    tone(110, 1.6, "sawtooth", 0.07);
-    tone(165, 1.6, "sawtooth", 0.04);
+    tone(110, 1.6, "triangle", 0.05);
+    tone(165, 1.6, "sine", 0.03);
   },
-  win: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.5, "triangle", 0.07, i * 0.14)),
-  lose: () => [392, 349, 311, 262].forEach((f, i) => tone(f, 0.6, "triangle", 0.06, i * 0.2)),
-  tick: () => tone(1200, 0.03, "square", 0.02),
+  win: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.6, "sine", 0.045, i * 0.16)),
+  lose: () => [392, 349, 311, 262].forEach((f, i) => tone(f, 0.7, "sine", 0.04, i * 0.22)),
+  tick: () => calm("tick", 400) && tone(880, 0.05, "sine", 0.015),
   /** A different sound for each thing you pick up. */
   pickup: (item?: string) => {
+    if (!calm("pickup", 150)) return;
     switch (item) {
-      case "fuel": // a heavy drum: low knock and a slosh
-        tone(150, 0.22, "sine", 0.14);
-        tone(95, 0.3, "triangle", 0.08, 0.03);
-        noise(0.35, 0.05, 700, 180);
+      case "fuel": // a heavy drum: a low, muffled knock
+        tone(140, 0.25, "sine", 0.07);
+        noise(0.3, 0.025, 500, 160);
         break;
-      case "medicine": // glass bottles clinking
-        tone(2093, 0.12, "sine", 0.05);
-        tone(2637, 0.16, "sine", 0.045, 0.07);
-        tone(2349, 0.14, "sine", 0.035, 0.15);
+      case "medicine": // glass bottles, softly
+        tone(1047, 0.22, "sine", 0.03);
+        tone(1319, 0.25, "sine", 0.025, 0.08);
         break;
-      case "tools": // a metal clank
-        tone(523, 0.09, "square", 0.035);
-        tone(784, 0.14, "triangle", 0.06, 0.02);
-        tone(1175, 0.18, "triangle", 0.03, 0.05);
+      case "tools": // a wooden clunk
+        tone(330, 0.15, "triangle", 0.04);
+        tone(494, 0.2, "sine", 0.03, 0.04);
         break;
-      case "diamond": // a bright sparkle
-        [1568, 2093, 2637, 3136, 4186].forEach((f, i) => tone(f, 0.35, "sine", 0.045, i * 0.06));
+      case "diamond": // a gentle sparkle
+        [784, 988, 1175, 1568].forEach((f, i) => tone(f, 0.4, "sine", 0.025, i * 0.07));
         break;
-      case "cutlass": // a blade drawn from its sheath
-        noise(0.4, 0.08, 1200, 9000, "highpass");
-        tone(1760, 0.35, "sawtooth", 0.018, 0.12);
-        tone(2217, 0.3, "triangle", 0.03, 0.14);
+      case "cutlass": // a soft swish
+        noise(0.35, 0.03, 800, 2200, "bandpass");
+        tone(587, 0.3, "sine", 0.02, 0.1);
         break;
-      case "compass": // a ticking dial and a soft chime
-        tone(1400, 0.03, "square", 0.03);
-        tone(1400, 0.03, "square", 0.03, 0.09);
-        tone(880, 0.5, "sine", 0.06, 0.18);
-        tone(1320, 0.5, "sine", 0.04, 0.18);
+      case "compass": // a soft chime
+        tone(660, 0.5, "sine", 0.035);
+        tone(990, 0.5, "sine", 0.025, 0.1);
         break;
       default: // pearls
-        tone(1318, 0.25, "sine", 0.06);
-        tone(1760, 0.3, "sine", 0.05, 0.07);
+        tone(988, 0.3, "sine", 0.035);
+        tone(1319, 0.35, "sine", 0.025, 0.08);
     }
   },
-  /** Your crates going into the hold: a thump and a rising "done". */
+  /** Your crates going into the hold: a soft thump and a gentle "done". */
   loaded: () => {
-    tone(110, 0.25, "sine", 0.14);
-    noise(0.1, 0.05, 900, 200);
-    tone(659, 0.18, "triangle", 0.06, 0.15);
-    tone(988, 0.3, "triangle", 0.06, 0.27);
+    if (!calm("loaded", 300)) return;
+    tone(110, 0.3, "sine", 0.07);
+    tone(523, 0.3, "sine", 0.035, 0.15);
+    tone(784, 0.4, "sine", 0.035, 0.27);
   },
 };
 
@@ -156,13 +189,13 @@ export function startSea() {
   src.buffer = buf;
   src.loop = true;
   const g = c.createGain();
-  g.gain.value = 0.05;
+  g.gain.value = 0.035;
   const lfo = c.createOscillator();
   lfo.frequency.value = 0.12;
   const lfoGain = c.createGain();
-  lfoGain.gain.value = 0.035;
+  lfoGain.gain.value = 0.02;
   lfo.connect(lfoGain).connect(g.gain);
-  src.connect(g).connect(c.destination);
+  src.connect(g).connect(out(c));
   src.start();
   lfo.start();
   sea = { stop: () => { src.stop(); lfo.stop(); } };
