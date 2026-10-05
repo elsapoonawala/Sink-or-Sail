@@ -43,6 +43,12 @@ export const MONSTER_R = 90;
 export const MONSTER_WARN_MS = 3_000;
 export const MONSTER_GRAB_MS = 2_200;
 export const MONSTER_FIRST_MS = 50_000;
+/** Galloping through water shakes a crate loose, at most this often. */
+export const SPLASH_DROP_MS = 2_500;
+/** Horses waiting at the stables: few enough that people race for them. */
+export function stableHorsesFor(players: number) {
+  return players >= 6 ? 3 : 2;
+}
 export const DIVE_MS = 2_500;
 /** Crates wash up in this many waves each tide, evenly spaced. */
 export const WAVES = 3;
@@ -126,6 +132,8 @@ export interface Player {
   lastMoveAt: number;
   accused: boolean;
   lastDump: number;
+  /** When galloping through water last shook a crate loose. */
+  lastSplash: number;
   /** Diamonds this player loaded aboard. */
   loadedDiamonds: number;
   /** Knocked out by a cutlass until then, and safe from another strike until guardUntil. */
@@ -205,6 +213,8 @@ export interface GameState {
   /** A tentacle rising near the shore: bubbles until grabAt, then it strikes once and sinks at goneAt. */
   monster: Monster | null;
   nextMonsterAt: number;
+  /** Saddled horses still waiting at the Royal Stables. */
+  stableHorses: number;
   marketStock: number;
   diveReady: number[];
   /** How many of this tide's crate waves have washed up. */
@@ -360,6 +370,7 @@ export function createGame(code: string, hostId: string): GameState {
     caveOpen: false,
     monster: null,
     nextMonsterAt: 0,
+    stableHorses: 2,
     marketStock: 0,
     diveReady: DIVE_SPOTS.map(() => 0),
     spawnedPart: 0,
@@ -389,7 +400,7 @@ function blankPlayer(id: string, name: string, seat: number, bot: boolean): Play
   return {
     id, name, seat, bot, choice: null, role: null, wrecker: false, connected: true,
     x: 0, y: 0, dir: Math.PI / 2, moving: false, mounted: false, carry: [], pearls: 0,
-    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
+    ready: false, brig: false, busyUntil: 0, lastMoveAt: 0, accused: false, lastDump: -DUMP_COOLDOWN, lastSplash: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
   };
 }
 
@@ -433,6 +444,7 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
   s.secretFound = false;
   s.caveOpen = false;
   s.monster = null;
+  s.stableHorses = stableHorsesFor(s.players.length);
   s.nextMonsterAt = now + (Number((globalThis as any).process?.env?.MONSTER_FIRST_MS) || MONSTER_FIRST_MS);
   s.diveReady = DIVE_SPOTS.map(() => 0);
   s.closed = [];
@@ -457,7 +469,7 @@ export function startGame(s: GameState, rng: Rng, now: number): string | null {
     Object.assign(p, {
       wrecker: wreckers.has(p.id), x: spot.x, y: spot.y, dir: -Math.PI / 2, moving: false,
       mounted: ROLE_INFO[p.role!].mounted, carry: [], pearls: 2, ready: false, brig: false, busyUntil: 0,
-      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
+      lastMoveAt: now, accused: false, lastDump: -DUMP_COOLDOWN, lastSplash: 0, loadedDiamonds: 0, downUntil: 0, guardUntil: 0,
     } satisfies Partial<Player>);
   });
 
@@ -609,6 +621,21 @@ export function leaveBuilding(s: GameState, pid: string, now: number): string | 
 }
 
 /** Somewhere dry a short walk from (x, y). */
+/** A horse galloping through water shakes a crate loose: it lands in the water behind you. */
+function gallopSplash(s: GameState, p: Player, now: number, g: Ground) {
+  // Bots ride carefully (their paths cut through shallows), so only people pay for it.
+  if (p.bot || !p.mounted || !p.moving || onDock(p.x, p.y) || footing(p.x, p.y, g) >= 0.8) return;
+  if (now - p.lastSplash < SPLASH_DROP_MS) return;
+  const i = p.carry.map((c) => c.kind !== "cutlass").lastIndexOf(true);
+  if (i < 0) return;
+  p.lastSplash = now;
+  const [item] = p.carry.splice(i, 1);
+  s.crates.push({ ...item, x: p.x - Math.cos(p.dir) * 48, y: p.y - Math.sin(p.dir) * 48, zone: "dropped" });
+  fx(s, "splash", p.x, p.y, p.id);
+  log(s, `${p.name} galloped through the water and dropped a crate.`, "info");
+  s.version++;
+}
+
 /** Every so often a tentacle rises in the shallows near someone, after a few seconds of bubbles.
  *  Anyone still close when it strikes loses the crates they carry to the sea. */
 function seaMonster(s: GameState, now: number, rng: Rng, g: Ground) {
@@ -759,6 +786,7 @@ export function tick(s: GameState, now: number, rng: Rng): boolean {
         p.downUntil = 0;
         s.version++;
       }
+      gallopSplash(s, p, now, g);
       collect(s, p, now);
       if (nearGangway(p) && p.carry.length && !p.downUntil) loadAll(s, p);
       if (p.ready && !onDock(p.x, p.y)) {
@@ -924,7 +952,11 @@ export function toggleMount(s: GameState, pid: string): string | null {
   const p = player(s, pid);
   if (!p || s.phase !== "play") return null;
   if (!p.mounted && !nearStables(p)) return "Horses are saddled at the Royal Stables.";
+  if (!p.mounted && s.stableHorses <= 0) return "Every horse is out. Wait for someone to get off one.";
+  // Saddling takes a horse from the rail; getting off sends it trotting home for the next rider.
+  s.stableHorses += p.mounted ? 1 : -1;
   p.mounted = !p.mounted;
+  s.version++;
   fx(s, "horse", p.x, p.y, p.id);
   return null;
 }
@@ -1002,8 +1034,14 @@ export function strike(s: GameState, pid: string, target: string, now: number): 
   });
   const spilled = t.carry.length;
   t.carry = [];
+  // A rider is knocked off, and the horse trots back to the stables for someone else.
+  const unhorsed = t.mounted;
+  if (unhorsed) {
+    t.mounted = false;
+    s.stableHorses++;
+  }
   fx(s, "strike", t.x, t.y, p.id);
-  log(s, `${p.name} knocked out ${t.name} with a cutlass${spilled ? ` and ${spilled > 1 ? `${spilled} crates` : "a crate"} spilled` : ""}!`, "alert");
+  log(s, `${p.name} knocked out ${t.name} with a cutlass${unhorsed ? " and off their horse" : ""}${spilled ? `, and ${spilled > 1 ? `${spilled} crates` : "a crate"} spilled` : ""}!`, "alert");
   return null;
 }
 
@@ -1128,6 +1166,7 @@ export interface GameView {
   secretFound: boolean;
   caveOpen: boolean;
   monster: Monster | null;
+  stableHorses: number;
   closed: BuildingId[];
   marketStock: number;
   diveReady: number[];
@@ -1180,6 +1219,7 @@ export function viewFor(s: GameState, pid: string): GameView {
     secretFound: s.secretFound,
     caveOpen: s.caveOpen,
     monster: s.monster,
+    stableHorses: s.stableHorses,
     closed: s.closed,
     marketStock: s.marketStock,
     diveReady: s.diveReady,

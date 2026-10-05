@@ -4,7 +4,7 @@ import {
   type GameView, DUMP_COOLDOWN, MONSTER_R, KIND_INFO, ROLE_INFO, STRIKE_R,
   carryLimit, nearDive, nearDoor, nearGangway, nearLamp, nearStables, nextWaveAt,
 } from "../../shared/game";
-import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, onDock, seaLevel, swimming } from "../../shared/world";
+import { type BuildingId, GANGWAY, ZONES, ZONE_IDS, buildingAt, floodsAtTide, footing, onDock, seaLevel, swimming } from "../../shared/world";
 import { CardArt, PearlIcon, Portrait } from "./art";
 import { ChatPanel, SignalBar } from "./Comms";
 import { Rules } from "./HowTo";
@@ -129,7 +129,12 @@ export function Game({ v }: { v: GameView }) {
       actions.push({ key: "dive", label: wait > 0 ? `Oysters regrow in ${Math.ceil(wait / 1000)}s` : "Dive for pearls", sub: me.role === "diver" ? "+4 pearls" : "+2 pearls", onClick: () => act({ type: "dive" }), tone: wait > 0 ? "ghost" : "primary" });
     }
     if (nearLamp(pos)) actions.push({ key: "lamp", label: v.lampTide === v.tide ? "Lamp already lit this tide" : "Light the lamp", sub: "Reveals every crate", onClick: () => act({ type: "lamp" }), tone: v.lampTide === v.tide ? "ghost" : "primary" });
-    if (!me.mounted && nearStables(pos)) actions.push({ key: "mount", label: "Saddle a horse", sub: "Ride much faster", onClick: () => act({ type: "mount" }), tone: "primary" });
+    if (!me.mounted && nearStables(pos)) {
+      const n = v.stableHorses;
+      actions.push(n > 0
+        ? { key: "mount", label: "Saddle a horse", sub: `${n} left · ride much faster`, onClick: () => act({ type: "mount" }), tone: "primary" }
+        : { key: "mount", label: "No horses left", sub: "Someone has to be knocked off one", onClick: () => {}, tone: "ghost" });
+    }
     if (me.wrecker && nearGangway(pos)) {
       const wait = DUMP_COOLDOWN - (now - (me.lastDump ?? -DUMP_COOLDOWN));
       actions.push({ key: "dump", label: wait > 0 ? `Lie low ${Math.ceil(wait / 1000)}s` : "Sink a crate", sub: "Secret Wrecker move", onClick: () => act({ type: "dump" }), tone: wait > 0 ? "ghost" : "danger" });
@@ -155,6 +160,7 @@ export function Game({ v }: { v: GameView }) {
   else if (buildingAt(pos.x, pos.y) && me.carry.length >= carryLimit(me)) hint = "Hands full. Tap Go outside and take it to the Kohinoor.";
   else if (buildingAt(pos.x, pos.y)) hint = `You're inside ${buildingAt(pos.x, pos.y)!.name}. Walk into anything glowing to take it, then tap Go outside.`;
   else if (v.monster && now < v.monster.grabAt && Math.hypot(pos.x - v.monster.x, pos.y - v.monster.y) < MONSTER_R + 80) hint = me.carry.some((c) => c.kind !== "cutlass") ? "Bubbles! A sea monster is coming up. Get out of the red ring or it grabs your crates!" : "Bubbles! A sea monster is coming up. Stay out of the red ring.";
+  else if (me.mounted && !onDock(pos.x, pos.y) && footing(pos.x, pos.y, { level: seaLevel(v.tide, v.tideStartedAt, v.totalTides, now), secretFound: v.secretFound, caveOpen: v.caveOpen }) < 0.8 && me.carry.some((c) => c.kind !== "cutlass")) hint = "Careful! Galloping through water shakes your crates loose. Ride around it.";
   else if (swimmingNow) hint = "You're swimming. It's slow going: head for dry land.";
   else if (v.sailAt) hint = `The Kohinoor sails in ${Math.ceil((v.sailAt - now) / 1000)}s. Get on the pier!`;
   else if (lastTide && tideLeft < 60_000) hint = "Last call! Be on the pier when the time runs out.";

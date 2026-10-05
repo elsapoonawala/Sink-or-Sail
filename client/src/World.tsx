@@ -463,7 +463,7 @@ export function World({ v, onTapPlayer, api }: { v: GameView; onTapPlayer: (pid:
       const mon = v.phase === "play" && !roomNow ? v.monster : null;
       if (mon) items.push({ y: mon.y, draw: () => drawMonster(ctx, mon, now, t, MONSTER_R) });
       if (!roomNow) for (const p of props) if (p.x > x0 && p.x < x1 && p.y > y0 && p.y < y1 && level - 0.25 < 99 && footing(p.x, p.y, g) > 0.6) items.push({ y: p.y, draw: () => drawProp(ctx, p, t) });
-      if (!roomNow) for (const l of [...drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level), ...outdoorBuildings(ctx)]) items.push(l);
+      if (!roomNow) for (const l of [...drawLandmarks(ctx, t, now < v.lampUntil, v.caveOpen, level, v.stableHorses), ...outdoorBuildings(ctx)]) items.push(l);
       for (const c of v.crates) {
         if (c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1) continue;
         if (c.zone !== "cave" || v.caveOpen) spotted.ids.add(c.id);

@@ -495,13 +495,13 @@ export function drawGangway(ctx: CanvasRenderingContext2D, t: number, active: bo
 
 // ---------- landmarks ----------
 
-export function drawLandmarks(ctx: CanvasRenderingContext2D, t: number, lampLit: boolean, caveOpen: boolean, level: number) {
+export function drawLandmarks(ctx: CanvasRenderingContext2D, t: number, lampLit: boolean, caveOpen: boolean, level: number, horses = 2) {
   const out: { y: number; draw: () => void }[] = [];
   out.push({ y: 660, draw: () => palace(ctx, t) });
   out.push({ y: 500, draw: () => hotel(ctx) });
   out.push({ y: MARKET_STALL.y + 10, draw: () => market(ctx) });
   out.push({ y: LAMP.y + 20, draw: () => lighthouse(ctx, t, lampLit) });
-  out.push({ y: STABLE_POS.y - 10, draw: () => stables(ctx, t) });
+  out.push({ y: STABLE_POS.y - 10, draw: () => stables(ctx, t, horses) });
   out.push({ y: 470, draw: () => gazebo(ctx) });
   out.push({ y: 1330, draw: () => wreck(ctx, level) });
   out.push({ y: CAVE_DOOR.y, draw: () => cave(ctx, caveOpen) });
@@ -689,7 +689,7 @@ function lighthouse(ctx: CanvasRenderingContext2D, t: number, lit: boolean) {
   ctx.restore();
 }
 
-function stables(ctx: CanvasRenderingContext2D, t: number) {
+function stables(ctx: CanvasRenderingContext2D, t: number, horses: number) {
   ctx.save();
   ctx.translate(STABLE_POS.x, STABLE_POS.y - 10);
   shadow(ctx, 0, 2, 70, 12);
@@ -713,9 +713,9 @@ function stables(ctx: CanvasRenderingContext2D, t: number) {
     ctx.stroke();
   }
   ctx.restore();
-  // Two horses waiting at the rail.
-  drawHorse(ctx, STABLE_POS.x - 40, STABLE_POS.y + 22, 1, false, t, "#7a4a2a");
-  drawHorse(ctx, STABLE_POS.x + 44, STABLE_POS.y + 26, -1, false, t + 500, "#f1ead9");
+  // The horses still waiting at the rail (they go as people saddle them).
+  const spots: [number, number, 1 | -1, string][] = [[-40, 22, 1, "#7a4a2a"], [44, 26, -1, "#f1ead9"], [2, 30, 1, "#3b2a20"]];
+  spots.slice(0, Math.max(0, Math.min(3, horses))).forEach(([dx, dy, f, c], i) => drawHorse(ctx, STABLE_POS.x + dx, STABLE_POS.y + dy, f, false, t + i * 500, c));
   ctx.strokeStyle = "#6b4a2f";
   ctx.lineWidth = 3;
   ctx.beginPath();

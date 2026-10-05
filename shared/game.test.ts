@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  type GameState, addPlayer, accuse, castVote, createGame, moveTo, player,
-  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, MONSTER_R, MONSTER_WARN_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
+  type GameState, addPlayer, accuse, castVote, createGame, ground, moveTo, player,
+  setReady, startGame, strike, tick, viewFor, enterBuilding, leaveBuilding, KNOCKOUT_MS, toggleMount, MONSTER_R, MONSTER_WARN_MS, GOAL, goalOf, SAIL_COUNTDOWN, WAVES,
 } from "./game";
 import { botTick, newBrain } from "./bots";
-import { BUILDING, BUILDINGS, DOCK, GANGWAY, ZONES, buildingAt, buildingOpen, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
+import { BUILDING, BUILDINGS, DOCK, GANGWAY, STABLE_POS, ZONES, buildingAt, buildingOpen, elev, floodsAtTide, footing, seaLevel, tideLevel } from "./world";
 
 const PIER_SPOT = { x: (DOCK.x1 + DOCK.x2) / 2, y: DOCK.y1 + 60 };
 
@@ -287,5 +287,23 @@ describe("bots", () => {
     expect(b.carry).toHaveLength(1);
     tick(s, 1_000_000 + MONSTER_WARN_MS + 2100, seeded());
     expect(s.monster).toBeNull();
+  });
+  it("has only a couple of horses, and galloping through water shakes a crate loose", () => {
+    const s = game(3);
+    for (const p of s.players) { p.mounted = false; p.bot = false; p.x = STABLE_POS.x; p.y = STABLE_POS.y + 30; }
+    const [a, b, c] = s.players;
+    expect(toggleMount(s, a.id)).toBeNull();
+    expect(toggleMount(s, b.id)).toBeNull();
+    expect(toggleMount(s, c.id)).toMatch(/Every horse is out/);
+    // Ride into shallow water carrying crates.
+    const g = ground(s, 1_000_100);
+    let wet: { x: number; y: number } | null = null;
+    for (let x = 100; x < 2400 && !wet; x += 10) for (let y = 100; y < 1700 && !wet; y += 10) { const f = footing(x, y, g); if (f > 0 && f < 0.8) wet = { x, y }; }
+    expect(wet).not.toBeNull();
+    a.x = wet!.x; a.y = wet!.y; a.moving = true;
+    a.carry = [{ id: "w1", kind: "fuel" }, { id: "w2", kind: "tools" }];
+    tick(s, 1_000_100, seeded());
+    expect(a.carry).toHaveLength(1);
+    expect(s.crates.some((k) => k.id === "w2")).toBe(true);
   });
 });
